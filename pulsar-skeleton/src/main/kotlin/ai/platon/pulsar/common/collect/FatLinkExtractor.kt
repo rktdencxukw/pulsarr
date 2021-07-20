@@ -119,7 +119,9 @@ class FatLinkExtractor(
         seed: NormUrl, page: WebPage, document: FeaturedDocument? = null, denyList: Collection<UrlAware>
     ): PageFatLink? {
         val fatLinkSpec = seed.spec
+        val normalizedFatLink = normalizer.invoke(fatLinkSpec) ?: fatLinkSpec
         val options = seed.options
+        val args = if (options.label.isNotBlank()) "-label ${options.label}" else ""
         val selector = options.outLinkSelector
         val now = Instant.now()
 
@@ -148,7 +150,8 @@ class FatLinkExtractor(
                 log.info("{}. No any link in the page, exported to {}", page.id, path)
             }
 
-            return PageFatLink(page, CrawlableFatLink(fatLinkSpec))
+            val fatLink = CrawlableFatLink(normalizedFatLink, href = fatLinkSpec)
+            return PageFatLink(page, fatLink)
         }
 
         // update vivid links
@@ -157,8 +160,6 @@ class FatLinkExtractor(
             page.vividLinks = hyperlinks.associate { it.url to "${it.text} createdAt: $now" }
         }
 
-        val args = "-label ${options.label}"
-        val normalizedFatLink = normalizer.invoke(fatLinkSpec) ?: fatLinkSpec
         val fatLink = CrawlableFatLink(normalizedFatLink, href = fatLinkSpec, args = args, tailLinks = vividLinks)
         return PageFatLink(page, fatLink)
     }
