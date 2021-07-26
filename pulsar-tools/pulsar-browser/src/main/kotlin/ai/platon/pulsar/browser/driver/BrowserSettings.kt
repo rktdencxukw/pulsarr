@@ -85,6 +85,7 @@ open class BrowserSettings(
         }
 
         fun withGUI(): Companion {
+            System.clearProperty(BROWSER_LAUNCH_SUPERVISOR_PROCESS)
             System.setProperty(BROWSER_DRIVER_HEADLESS, "false")
             return BrowserSettings
         }
