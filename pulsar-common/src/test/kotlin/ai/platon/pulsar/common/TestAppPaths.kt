@@ -16,12 +16,69 @@
  */
 package ai.platon.pulsar.common
 
+import ai.platon.pulsar.common.config.AppConstants
+import ai.platon.pulsar.common.config.CapabilityTypes
+import org.apache.commons.lang3.RandomStringUtils
+import org.apache.commons.lang3.SystemUtils
 import org.junit.Test
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Paths
+import kotlin.random.Random
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TestAppPaths {
     private val tmpDirStr get() = AppPaths.TMP_DIR.toString()
     private val homeDirStr get() = AppPaths.DATA_DIR.toString()
+
+    val home = SystemUtils.USER_HOME
+    val tmp = SystemUtils.JAVA_IO_TMPDIR
+    val appName = AppContext.APP_NAME
+    val ident = AppContext.APP_IDENT
+
+    @BeforeTest
+    fun setup() {
+        System.clearProperty(CapabilityTypes.APP_TMP_DIR_KEY)
+        System.clearProperty(CapabilityTypes.APP_NAME_KEY)
+        System.clearProperty(CapabilityTypes.APP_ID_KEY)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Files.deleteIfExists(Paths.get("$home/prometheus"))
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun testAppContextDirs() {
+        assertEquals("pulsar", appName)
+        assertEquals(AppContext.APP_TMP_DIR.toString(), "$tmp/$appName")
+        assertEquals(AppContext.APP_PROC_TMP_DIR.toString(), "$tmp/$appName-$ident")
+
+        System.setProperty(CapabilityTypes.APP_TMP_DIR_KEY, "$home/prometheus")
+        assertEquals("$home/prometheus/$appName", AppContext.APP_TMP_DIR_RT.toString())
+        assertEquals("$home/prometheus/$appName-$ident", AppContext.APP_PROC_TMP_DIR_RT.toString())
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun testCustomAppContextDirs() {
+        System.setProperty(CapabilityTypes.APP_TMP_DIR_KEY, "$home/prometheus")
+        System.setProperty(CapabilityTypes.APP_NAME_KEY, "amazon")
+        System.setProperty(CapabilityTypes.APP_ID_KEY, "bs")
+
+        assertEquals("$home/prometheus/amazon", AppContext.APP_TMP_DIR_RT.toString())
+        assertEquals("$home/prometheus/amazon-bs", AppContext.APP_PROC_TMP_DIR_RT.toString())
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun testPathStartWith() {
+        assertTrue { AppPaths.CHROME_DATA_DIR_PROTOTYPE.startsWith(AppPaths.BROWSER_DATA_DIR) }
+    }
 
     @Test
     @Throws(Exception::class)
@@ -43,5 +100,47 @@ class TestAppPaths {
         path = AppPaths.DATA_DIR.resolve("scripts")
         path2 = AppPaths.get(path.toString(), filename)
         assertTrue(path2.startsWith(AppPaths.DATA_DIR), "$path -> $path2")
+    }
+
+    /**
+     * Ensure a symbolic link can be created.
+     *
+     * @see <a href='https://github.com/platonai/pulsarr/issues/20'>
+     *     #20 Failed to create symbolic link when export webpage on Windows 11</a>
+     * */
+    @Test
+    @Throws(Exception::class)
+    fun testCreateSymbolicLink() {
+        var i = 0
+        val n = 50
+
+        while(i++ < n) {
+            val filename = "" + Random.nextInt(10) + ".htm"
+            val url = AppConstants.EXAMPLE_URL + "/$filename"
+            val path = AppPaths.getTmp(AppPaths.fromUri(url))
+            Files.writeString(path, "test")
+
+            val link = AppPaths.uniqueSymbolicLinkForUri(url)
+            try {
+                Files.deleteIfExists(link)
+                Files.createSymbolicLink(link, path)
+                assertTrue { Files.exists(link) }
+            } finally {
+                if (i % 2 == 0) {
+                    Files.deleteIfExists(link)
+                    Files.deleteIfExists(path)
+                }
+            }
+        }
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun testFromDomain() {
+        assertTrue { Strings.isIpLike("8.8.8.8") }
+        assertTrue { Strings.isIpLike("127.0.0.1") }
+        assertEquals("127-0-0-1", AppPaths.fromDomain("https://127.0.0.1/a/b/c?t=1&k=2"))
+        assertEquals("localhost", AppPaths.fromDomain("https://localhost/a/b/c?t=1&k=2#domain"))
+        assertEquals("baidu-com", AppPaths.fromDomain("https://baidu.com/a/b/c?t=1&k=2#domain"))
     }
 }

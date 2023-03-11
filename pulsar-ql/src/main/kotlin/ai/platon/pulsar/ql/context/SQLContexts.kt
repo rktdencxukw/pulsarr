@@ -11,6 +11,7 @@ import ai.platon.pulsar.crawl.filter.ChainedUrlNormalizer
 import ai.platon.pulsar.crawl.impl.StreamingCrawlLoop
 import ai.platon.pulsar.persist.WebDb
 import ai.platon.pulsar.ql.AbstractSQLSession
+import ai.platon.pulsar.ql.SQLSession
 import ai.platon.pulsar.ql.SessionConfig
 import ai.platon.pulsar.ql.SessionDelegate
 import ai.platon.pulsar.ql.h2.H2MemoryDb
@@ -43,6 +44,9 @@ open class H2SQLContext(
         return session as H2SQLSession
     }
 
+    /**
+     * Create a pulsar session, note that the session is not a SQLSession.
+     * */
     override fun createSession(): BasicPulsarSession {
         val session = BasicPulsarSession(this, unmodifiedConfig.toVolatileConfig())
         return session.also { sessions[it.id] = it }
@@ -153,7 +157,7 @@ object SQLContexts {
     fun create(contextLocation: String): SQLContext = create(ClassPathXmlSQLContext(contextLocation))
 
     @Synchronized
-    fun createSession() = create().createSession()
+    fun createSession() = create().createSession() as SQLSession
 
     fun await() {
         PulsarContexts.await()

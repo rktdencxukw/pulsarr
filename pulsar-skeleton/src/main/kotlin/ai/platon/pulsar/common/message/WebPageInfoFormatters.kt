@@ -4,7 +4,7 @@ import ai.platon.pulsar.common.*
 import ai.platon.pulsar.common.PulsarParams.VAR_PRIVACY_CONTEXT_NAME
 import ai.platon.pulsar.common.PulsarParams.VAR_FETCH_STATE
 import ai.platon.pulsar.common.config.Params
-import ai.platon.pulsar.common.emoji.UnicodeEmoji
+import ai.platon.pulsar.common.emoji.PopularEmoji
 import ai.platon.pulsar.common.persist.ext.options
 import ai.platon.pulsar.crawl.common.FetchState
 import ai.platon.pulsar.persist.PageCounters
@@ -87,18 +87,18 @@ class LoadStatusFormatter(
 
     private val taskStatusSymbol: String get() = when {
         prefix.isNotBlank() -> ""
-        page.isCanceled -> "${UnicodeEmoji.CANCELLATION_X} "
-        protocolStatus.isFailed -> "${UnicodeEmoji.BROKEN_HEART} "
-        protocolStatus.isSuccess -> "${UnicodeEmoji.HUNDRED_POINTS} "
-        else -> "${UnicodeEmoji.SKULL_CROSSBONES} "
+        page.isCanceled -> "${PopularEmoji.CANCELLATION_X} "
+        protocolStatus.isFailed -> "${PopularEmoji.BROKEN_HEART} "
+        protocolStatus.isSuccess -> "${PopularEmoji.HUNDRED_POINTS} "
+        else -> "${PopularEmoji.SKULL_CROSSBONES} "
     }
     private val pageStatusSymbol get() = when {
-        page.isCanceled -> UnicodeEmoji.CANCELLATION_X // canceled
-        page.isFetched && page.fetchCount == 1 -> UnicodeEmoji.LIGHTNING // fetched new
-        page.isFetched -> UnicodeEmoji.CIRCLE_ARROW_1 // fetched, reload
-        page.isCached -> UnicodeEmoji.HOT_BEVERAGE // cached
-        page.isLoaded -> UnicodeEmoji.OPTICAL_DISC   // load from db
-        else -> UnicodeEmoji.BUG  // BUG symbol
+        page.isCanceled -> PopularEmoji.CANCELLATION_X // canceled
+        page.isFetched && page.fetchCount == 1 -> PopularEmoji.LIGHTNING // fetched new
+        page.isFetched -> PopularEmoji.CIRCLE_ARROW_1 // fetched, reload
+        page.isCached -> PopularEmoji.HOT_BEVERAGE // cached
+        page.isLoaded -> PopularEmoji.OPTICAL_DISC   // load from db
+        else -> PopularEmoji.BUG  // BUG symbol
     }
     private val pageStatusText get() = when {
         page.isCanceled -> "Canceled"
@@ -147,7 +147,11 @@ class LoadStatusFormatter(
         else -> String.format("%d", page.fetchCount)
     }
     private val fieldCountFmt get() = if (m == null || m.numFields == 0) "%s" else " | nf:%-10s"
-    private val failure get() = if (page.protocolStatus.isFailed) String.format(" %s", page.protocolStatus) else ""
+    private val failure get() = when {
+        page.isCanceled -> String.format(" %s", page.protocolStatus.reason)
+        protocolStatus.isFailed -> String.format(" %s", page.protocolStatus.toString())
+        else -> ""
+    }
     private val symbolicLink get() = AppPaths.uniqueSymbolicLinkForUri(page.url)
     private val contextName get() = page.variables[VAR_PRIVACY_CONTEXT_NAME]?.let { " | $it" } ?: ""
 
@@ -206,17 +210,21 @@ class LoadStatusFormatter(
     }
 
     private fun buildContentBytes(): String {
-        var contentBytes = if (page.lastContentLength == 0L || page.lastContentLength == page.contentLength) {
+        var contentLength = if (page.lastContentLength == 0L || page.lastContentLength == page.contentLength) {
             compactFormat(page.contentLength).trim()
         } else {
             compactFormat(page.contentLength).trim() + " <- " + compactFormat(page.lastContentLength).trim()
         }
 
         if (page.content == null) {
-            contentBytes = "0 <- $contentBytes"
+            contentLength = "0 <- $contentLength"
         }
 
-        return contentBytes
+        return if (page.persistedContentLength > 0) {
+            contentLength + " [" + PopularEmoji.OPTICAL_DISC + compactFormat(page.persistedContentLength).trim() + "]"
+        } else {
+            contentLength
+        }
     }
 
     private fun compactFormat(bytes: Long): String {

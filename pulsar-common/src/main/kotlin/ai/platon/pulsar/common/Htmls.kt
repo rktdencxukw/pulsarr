@@ -7,11 +7,11 @@ import java.util.regex.Pattern
 const val DEFAULT_SUPPORTED_CHARSETS = "UTF-8|GB2312|GB18030|GBK|Big5|ISO-8859-1" +
         "|windows-1250|windows-1251|windows-1252|windows-1253|windows-1254|windows-1257"
 val DEFAULT_CHARSET_PATTERN = DEFAULT_SUPPORTED_CHARSETS.replace("UTF-8\\|?", "")
-        .toPattern(Pattern.CASE_INSENSITIVE)
+    .toPattern(Pattern.CASE_INSENSITIVE)
 // All charsets are supported by the system
 val SYSTEM_AVAILABLE_CHARSETS = Charset.availableCharsets().values.joinToString("|") { it.name() }
 val SYSTEM_AVAILABLE_CHARSET_PATTERN = SYSTEM_AVAILABLE_CHARSETS.replace("UTF-8\\|?", "")
-        .toPattern(Pattern.CASE_INSENSITIVE)
+    .toPattern(Pattern.CASE_INSENSITIVE)
 
 enum class HtmlIntegrity {
     OK,
@@ -37,6 +37,10 @@ enum class HtmlIntegrity {
      * The page content contains no anchor at all
      * */
     NO_ANCHOR,
+    /**
+     * The page content contains no anchor at all
+     * */
+    FIELD_MISSING,
     /**
      * Failed to run injected javascript
      * */
@@ -92,6 +96,7 @@ enum class HtmlIntegrity {
     val isEmpty: Boolean get() = this == EMPTY_0B || this == EMPTY_39B
     val isNotEmpty: Boolean get() = !isEmpty
     val isEmptyBody: Boolean get() = this == BLANK_BODY
+    val hasMissingField: Boolean get() = this == FIELD_MISSING
     val isRobotCheck: Boolean get() = this == ROBOT_CHECK
     val isRobotCheck2: Boolean get() = this == ROBOT_CHECK_2
     val isRobotCheck3: Boolean get() = this == ROBOT_CHECK_3

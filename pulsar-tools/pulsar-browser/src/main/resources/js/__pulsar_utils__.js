@@ -476,7 +476,7 @@ __pulsar_utils__.click = function(selector) {
  * @param  {String} pattern
  * @return
  */
-__pulsar_utils__.clickMatches = function(selector, pattern) {
+__pulsar_utils__.clickTextMatches = function(selector, pattern) {
     let elements = document.querySelectorAll(selector)
     for (let ele of elements) {
         if (ele instanceof HTMLElement) {
@@ -484,28 +484,6 @@ __pulsar_utils__.clickMatches = function(selector, pattern) {
             if (text.match(pattern)) {
                 ele.scrollIntoView()
                 ele.click()
-            }
-        }
-    }
-}
-
-/**
- * Select the first element and click it.
- *
- * @param  {String} selector
- * @param  {String} attrName
- * @param  {String} pattern
- * @return
- */
-__pulsar_utils__.clickMatches = function(selector, attrName, pattern) {
-    let elements = document.querySelectorAll(selector)
-    for (let ele of elements) {
-        if (ele instanceof HTMLElement) {
-            let attrValue = ele.getAttribute(attrName)
-            if (attrValue.match(pattern)) {
-                ele.scrollIntoView()
-                ele.click()
-                return
             }
         }
     }
@@ -616,11 +594,12 @@ __pulsar_utils__.firstText = function(selector) {
  * Select elements and extract the texts
  *
  * @param  {String} selector
- * @return {Array}
+ * @return {Object} A json object
  */
 __pulsar_utils__.allTexts = function(selector) {
     let elements = document.querySelectorAll(selector)
-    return elements.map(e => e.textContent)
+    let texts = Array.from(elements).map(e => e.textContent)
+    return JSON.stringify(texts)
 };
 
 /**
@@ -643,11 +622,36 @@ __pulsar_utils__.firstAttr = function(selector, attrName) {
  *
  * @param  {String} selector
  * @param  {String} attrName
- * @return {Array}
+ * @return {String} attribute values separated by line break "\n"
  */
 __pulsar_utils__.allAttrs = function(selector, attrName) {
     let elements = document.querySelectorAll(selector)
-    return elements.map(e => e.getAttribute(attrName))
+    return Array.from(elements).map(e => e.getAttribute(attrName)).join("\n")
+};
+
+/**
+ * Select the first anchor element and extract the link.
+ *
+ * @param  {String} selector
+ * @return {String}
+ */
+__pulsar_utils__.firstLink = function(selector) {
+    let element = document.querySelector(selector)
+    if (element != null && element.nodeName === 'A') {
+        return element.href
+    }
+    return null
+};
+
+/**
+ * Select all anchor elements and extract all the links.
+ *
+ * @param  {String} selector
+ * @return {String} links separated by line break "\n"
+ */
+__pulsar_utils__.allLinks = function(selector) {
+    let elements = document.querySelectorAll(selector)
+    return Array.from(elements).filter(e => e.nodeName === 'A').map(e => e.href).join("\n")
 };
 
 /**

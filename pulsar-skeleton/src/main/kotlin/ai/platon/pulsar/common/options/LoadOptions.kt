@@ -37,7 +37,8 @@ import kotlin.reflect.jvm.kotlinProperty
  * // write the page content into storage
  * session.load('https://www.jd.com', '-storeContent')
  * ```
- */
+ * TODO: support new options: -referrer, -priority
+ * */
 open class LoadOptions(
     argv: Array<String>,
     val conf: VolatileConfig,
@@ -262,6 +263,8 @@ open class LoadOptions(
 
     /**
      * The fetch mode.
+     *
+     * Only BROWSER is supported currently.
      * */
     @Parameter(names = ["-fm", "-fetchMode", "--fetch-mode"], converter = FetchModeConverter::class,
             description = "The fetch mode")
@@ -415,7 +418,9 @@ open class LoadOptions(
                 " The option can be explained as follows:" +
                 " -refresh = -ignoreFailure -i 0s and set page.fetchRetries = 0")
     var refresh = false
-        set(value) = doRefresh(value)
+        set(value) {
+            field = doRefresh(value)
+        }
 
     /**
      * Retry fetching the page even if it's failed last time.
@@ -765,7 +770,7 @@ open class LoadOptions(
             ?.let { appendSelectorIfMissing(it, "a") }
     }
 
-    private fun doRefresh(value: Boolean) {
+    private fun doRefresh(value: Boolean): Boolean {
         if (value) {
             expires = Duration.ZERO
             expireAt = Instant.now()
@@ -775,7 +780,7 @@ open class LoadOptions(
 
             ignoreFailure = true
         }
-        refresh = value
+        return value
     }
 
     /**
@@ -925,6 +930,11 @@ open class LoadOptions(
         fun create(conf: VolatileConfig) = LoadOptions(arrayOf(), conf).apply { parse() }
 
         /**
+         * Create an empty [LoadOptions].
+         * */
+        fun createUnsafe() = create(VolatileConfig.UNSAFE)
+
+        /**
          * Normalize [args], all option names in a normalized argument string match the field name in [LoadOptions].
          * */
         fun normalize(vararg args: String?) = parse(args.filterNotNull().joinToString(" ")).toString()
@@ -973,6 +983,7 @@ open class LoadOptions(
 
 /**
  * The default load options, be careful to change the default behaviour.
+ *
  * */
 object LoadOptionDefaults {
     /**

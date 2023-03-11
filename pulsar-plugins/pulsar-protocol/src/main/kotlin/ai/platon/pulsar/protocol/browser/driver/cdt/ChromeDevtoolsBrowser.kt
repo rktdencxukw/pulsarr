@@ -3,10 +3,17 @@ package ai.platon.pulsar.protocol.browser.driver.cdt
 import ai.platon.pulsar.browser.driver.chrome.*
 import ai.platon.pulsar.browser.driver.chrome.impl.ChromeImpl
 import ai.platon.pulsar.browser.driver.chrome.util.ChromeDriverException
+import ai.platon.pulsar.common.AppSystemInfo
+import ai.platon.pulsar.common.brief
+import ai.platon.pulsar.common.config.CapabilityTypes.BROWSER_REUSE_RECOVERED_DRIVERS
+import ai.platon.pulsar.common.stringify
+import ai.platon.pulsar.common.urls.UrlUtils
 import ai.platon.pulsar.crawl.fetch.driver.AbstractBrowser
+import ai.platon.pulsar.crawl.fetch.driver.WebDriver
 import ai.platon.pulsar.crawl.fetch.driver.WebDriverException
 import ai.platon.pulsar.crawl.fetch.privacy.BrowserId
 import com.github.kklisura.cdt.protocol.ChromeDevTools
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
@@ -14,16 +21,43 @@ import java.time.Instant
 class ChromeDevtoolsBrowser(
     id: BrowserId,
     val chrome: RemoteChrome,
-    private val launcher: ChromeLauncher,
+    private val launcher: ChromeLauncher
 ): AbstractBrowser(id, launcher.options.browserSettings) {
 
     private val logger = LoggerFactory.getLogger(ChromeDevtoolsBrowser::class.java)
 
     private val toolsConfig = DevToolsConfig()
+
+    private val conf get() = browserSettings.conf
+
+    private val reuseRecoveredDriver get() = conf.getBoolean(BROWSER_REUSE_RECOVERED_DRIVERS, false)
+
     private val chromeTabs: List<ChromeTab>
         get() = drivers.values.filterIsInstance<ChromeDevtoolsDriver>().map { it.chromeTab }
+
     private val devtools: List<ChromeDevTools>
         get() = drivers.values.filterIsInstance<ChromeDevtoolsDriver>().map { it.devTools }
+
+    @Synchronized
+    @Throws(WebDriverException::class)
+    fun createTab(): ChromeTab {
+        lastActiveTime = Instant.now()
+        return kotlin.runCatching { chrome.createTab(ChromeImpl.ABOUT_BLANK_PAGE) }
+            .getOrElse { throw WebDriverException("createTab", it) }
+    }
+
+    @Synchronized
+    @Throws(WebDriverException::class)
+    fun closeTab(tab: ChromeTab) {
+        logger.debug("Closing tab | {}", tab.url)
+        return runCatching { chrome.closeTab(tab) }.getOrElse { throw WebDriverException("closeTab", it) }
+    }
+
+    @Synchronized
+    @Throws(WebDriverException::class)
+    fun listTabs(): Array<ChromeTab> {
+        return runCatching { chrome.listTabs() }.getOrElse { throw WebDriverException("listTabs", it) }
+    }
 
     @Synchronized
     @Throws(WebDriverException::class)
@@ -41,65 +75,116 @@ class ChromeDevtoolsBrowser(
 
     @Synchronized
     @Throws(WebDriverException::class)
-    fun createTab(): ChromeTab {
-        lastActiveTime = Instant.now()
-        return kotlin.runCatching { chrome.createTab(ChromeImpl.ABOUT_BLANK_PAGE) }
-            .getOrElse { throw WebDriverException("createTab", it) }
+    fun findDriver(url: String): ChromeDevtoolsDriver? {
+        recoverUnmanagedPages()
+        return drivers.values.filterIsInstance<ChromeDevtoolsDriver>().firstOrNull { currentUrl(it) == url }
     }
 
-    @Synchronized
-    @Throws(WebDriverException::class)
-    fun closeTab(tab: ChromeTab) {
-        logger.debug("Closing tab | {}", tab.url)
-        return chrome.runCatching { closeTab(tab) }.getOrElse { throw WebDriverException("closeTab", it) }
-    }
+    override fun destroyDriver(driver: WebDriver) {
+        if (driver is ChromeDevtoolsDriver) {
+            val chromTab = driver.chromeTab
+            val chromTabId = chromTab.id
 
-    @Synchronized
-    @Throws(WebDriverException::class)
-    fun listTabs(): Array<ChromeTab> {
-        return chrome.runCatching { listTabs() }.getOrElse { throw WebDriverException("listTabs", it) }
+            mutableRecoveredDrivers.remove(chromTabId)
+            mutableReusedDrivers.remove(chromTabId)
+            mutableDrivers.remove(chromTabId)
+
+            kotlin.runCatching { closeTab(driver.chromeTab) }.onFailure { logger.warn(it.brief()) }
+            kotlin.runCatching { driver.doClose() }.onFailure { logger.warn(it.brief()) }
+        }
     }
 
     override fun maintain() {
-        listTabs().filter { it.id !in drivers.keys }.map { newDriver(it, true) }
-
-//        println("\n\n\n")
-//        chromeTabs.forEach {
-//            println(it.id + "\t" + it.parentId + "\t|\t" + it.url)
-//        }
-
+        recoverUnmanagedPages()
         closeRecoveredIdleDrivers()
     }
 
+    override fun destroyForcibly() {
+        close()
+        kotlin.runCatching { launcher.destroyForcibly() }.onFailure { logger.warn(it.stringify()) }
+    }
+
+    /**
+     * Closing call stack:
+     *
+     * PrivacyContextManager.close -> PrivacyContext.close -> WebDriverContext.close -> WebDriverPoolManager.close
+     * -> BrowserManager.close -> Browser.close -> WebDriver.close
+     * |-> LoadingWebDriverPool.close
+     *
+     * */
+    override fun close() {
+        if (closed.compareAndSet(false, true)) {
+            kotlin.runCatching { doClose() }.onFailure { logger.warn(it.brief("Failed to close browser\n")) }
+            super.close()
+        }
+    }
+
+    private fun currentUrl(driver: WebDriver) = runBlocking { driver.currentUrl() }
+
+    /**
+     * Create a new driver.
+     * */
     private fun newDriver(chromeTab: ChromeTab, recovered: Boolean): ChromeDevtoolsDriver {
+        if (!recovered && reuseRecoveredDriver) {
+            val driver = mutableRecoveredDrivers.values
+                .filterIsInstance<ChromeDevtoolsDriver>()
+                .firstOrNull { !it.isReused }
+            if (driver != null) {
+                driver.isReused = true
+                mutableReusedDrivers[driver.chromeTab.id] = driver
+
+                val currentUrl = runBlocking { driver.currentUrl() }
+                logger.debug("Reuse recovered driver | {}", currentUrl)
+                return driver
+            }
+        }
+
         val devTools = createDevTools(chromeTab, toolsConfig)
         val driver = ChromeDevtoolsDriver(chromeTab, devTools, browserSettings, this)
-        driver.isRecovered = recovered
+        mutableDrivers[chromeTab.id] = driver
 
-        _drivers[chromeTab.id] = driver
+        if (recovered) {
+            driver.isRecovered = true
+            mutableRecoveredDrivers[chromeTab.id] = driver
+        }
 
         return driver
     }
 
-    override fun close() {
-        if (closed.compareAndSet(false, true)) {
-            kotlin.runCatching { doClose() }.onFailure { logger.warn("Failed to close browser", it) }
-            super.close()
-        }
+    /**
+     * Pages can be open in the browser, for example, by a click. We should recover the page
+     * and create a web driver to manage it.
+     * */
+    private fun recoverUnmanagedPages() {
+        listTabs().asSequence()
+            .filter { it.id !in drivers.keys } // unmanaged
+            .filter { it.isPageType() } // handler HTML document only
+            .filter { UrlUtils.isStandard(it.url) } // make sure the url is correct
+            .map {
+                logger.info("Recover tab {} | {}", it.id, it.url)
+                // create a new driver and associate it with the tab
+                newDriver(it, true)
+            }
     }
 
     private fun closeRecoveredIdleDrivers() {
         val chromeDrivers = drivers.values.filterIsInstance<ChromeDevtoolsDriver>()
 
-        val unmanagedTabTimeout = Duration.ofSeconds(30)
-        val unmanagedDrivers = chromeDrivers.filter { it.isRecovered }
-            .filter { Duration.between(lastActiveTime, Instant.now()) > unmanagedTabTimeout }
-        if (unmanagedDrivers.isNotEmpty()) {
-            logger.debug("Closing {} unmanaged drivers", unmanagedDrivers.size)
-            require(unmanagedDrivers.all { it.navigateHistory.isEmpty() }) {
-                "Unmanaged driver should has no history"
+        val pageLoadTimeout = browserSettings.interactSettings.pageLoadTimeout
+        val seconds = if (AppSystemInfo.isCriticalResources) 15L else pageLoadTimeout.seconds
+        val unmanagedTabTimeout = Duration.ofSeconds(seconds)
+        val isIdle = { driver: WebDriver -> Duration.between(driver.lastActiveTime, Instant.now()) > unmanagedTabTimeout }
+        val unmanagedTimeoutDrivers = chromeDrivers.filter { it.isRecovered && !it.isReused && isIdle(it) }
+        if (unmanagedTimeoutDrivers.isNotEmpty()) {
+            logger.debug("Closing {} unmanaged drivers", unmanagedTimeoutDrivers.size)
+            val hasHistory = unmanagedTimeoutDrivers.any { it.navigateHistory.isEmpty() }
+            if (hasHistory) {
+                logger.warn("Unmanaged driver should has no history")
             }
-            unmanagedDrivers.forEach { it.close() }
+//            require(unmanagedTimeoutDrivers.all { it.navigateHistory.isEmpty() }) {
+//                "Unmanaged driver should have no history"
+//            }
+            unmanagedTimeoutDrivers.forEach { destroyDriver(it) }
         }
     }
 
@@ -113,15 +198,20 @@ class ChromeDevtoolsBrowser(
     }
 
     private fun closeDrivers() {
+        val nonSynchronized = drivers.toList()
+
+        mutableRecoveredDrivers.clear()
+        mutableReusedDrivers.clear()
+        mutableDrivers.clear()
+
         if (drivers.isEmpty()) {
             return
         }
 
-        logger.info("Closing browser with {} devtools ... | #{}", drivers.size, id)
+        logger.info("Closing browser with {} drivers/devtools ... | #{}", drivers.size, id)
 
-        val nonSynchronized = drivers.toList().also { _drivers.clear() }
-        nonSynchronized.parallelStream().forEach {
-            it.runCatching { close() }.onFailure { logger.warn("Failed to close the devtool", it) }
+        nonSynchronized.parallelStream().forEach { (id, driver) ->
+            kotlin.runCatching { driver.close() }.onFailure { logger.warn(it.brief("Failed to close the devtool")) }
         }
     }
 

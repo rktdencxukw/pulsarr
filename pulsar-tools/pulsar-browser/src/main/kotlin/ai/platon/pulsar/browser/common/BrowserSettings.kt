@@ -8,6 +8,8 @@ import ai.platon.pulsar.common.config.CapabilityTypes.*
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.config.MutableConfig
 import ai.platon.pulsar.common.proxy.ProxyPoolManager
+import ai.platon.pulsar.common.serialize.json.pulsarObjectMapper
+import com.fasterxml.jackson.annotation.JsonIgnore
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -28,6 +30,7 @@ open class BrowserSettings(
 
         /**
          * Check if the current environment supports only headless mode.
+         * TODO: this doesn't work sometimes
          * */
         val isHeadlessOnly: Boolean get() = !AppContext.isGUIAvailable
 
@@ -43,7 +46,7 @@ open class BrowserSettings(
         /**
          * Indicate the network condition.
          *
-         * The system adjusts its behavior according to different network conditions
+         * The system adjusts its behavior according to the current network conditions
          * to obtain the best data quality and data collection speed.
          * */
         @JvmStatic
@@ -54,7 +57,7 @@ open class BrowserSettings(
         /**
          * Indicate the network condition.
          *
-         * The system adjusts its behavior according to different network conditions
+         * The system adjusts its behavior according to the current network conditions
          * to obtain the best data quality and data collection speed.
          * */
         @JvmStatic
@@ -66,7 +69,7 @@ open class BrowserSettings(
         /**
          * Indicate the network condition.
          *
-         * The system adjusts its behavior according to different network conditions
+         * The system adjusts its behavior according to the current network conditions
          * to obtain the best data quality and data collection speed.
          * */
         @JvmStatic
@@ -126,10 +129,20 @@ open class BrowserSettings(
         }
 
         /**
-         * Set privacy context count
+         * Set the number of privacy contexts
          * */
+        @Deprecated("Verbose name", ReplaceWith("privacy(n)"))
         @JvmStatic
         fun privacyContext(n: Int): Companion {
+            System.setProperty(PRIVACY_CONTEXT_NUMBER, "$n")
+            return BrowserSettings
+        }
+
+        /**
+         * Set the number of privacy contexts
+         * */
+        @JvmStatic
+        fun privacy(n: Int): Companion {
             System.setProperty(PRIVACY_CONTEXT_NUMBER, "$n")
             return BrowserSettings
         }
@@ -150,6 +163,7 @@ open class BrowserSettings(
         @JvmStatic
         fun withSPA(): Companion {
             System.setProperty(FETCH_TASK_TIMEOUT, Duration.ofDays(1000).toString())
+            System.setProperty(PRIVACY_CONTEXT_IDLE_TIMEOUT, Duration.ofDays(1000).toString())
             System.setProperty(BROWSER_SPA_MODE, "true")
             return BrowserSettings
         }
@@ -160,7 +174,14 @@ open class BrowserSettings(
          * */
         @JvmStatic
         fun enableUrlBlocking(): Companion {
-            System.setProperty(BROWSER_ENABLE_URL_BLOCKING, "true")
+            System.setProperty(BROWSER_RESOURCE_BLOCK_PROBABILITY, "1.0")
+            return BrowserSettings
+        }
+
+        @JvmStatic
+        fun enableUrlBlocking(probability: Float): Companion {
+            require(probability in 0.0f..1.0f)
+            System.setProperty(BROWSER_RESOURCE_BLOCK_PROBABILITY, "$probability")
             return BrowserSettings
         }
 
@@ -169,7 +190,7 @@ open class BrowserSettings(
          * */
         @JvmStatic
         fun disableUrlBlocking(): Companion {
-            System.setProperty(BROWSER_ENABLE_URL_BLOCKING, "false")
+            System.setProperty(BROWSER_RESOURCE_BLOCK_PROBABILITY, "1.0")
             return BrowserSettings
         }
 
@@ -178,7 +199,8 @@ open class BrowserSettings(
          * */
         @JvmStatic
         fun blockImages(): Companion {
-            // enableUrlBlocking()
+            enableUrlBlocking()
+            TODO("Not implemented")
             return BrowserSettings
         }
 
@@ -254,8 +276,11 @@ open class BrowserSettings(
      * supervised
      * */
     val displayMode
-        get() = if (isHeadlessOnly) DisplayMode.HEADLESS
-        else conf.getEnum(BROWSER_DISPLAY_MODE, DisplayMode.GUI)
+        get() = when {
+            conf[BROWSER_DISPLAY_MODE] != null -> conf.getEnum(BROWSER_DISPLAY_MODE, DisplayMode.HEADLESS)
+            isHeadlessOnly -> DisplayMode.HEADLESS
+            else -> DisplayMode.GUI
+        }
 
     /**
      * If true, the browser will run in supervised mode.
@@ -282,10 +307,15 @@ open class BrowserSettings(
      * */
     val isStartupScriptEnabled get() = conf.getBoolean(BROWSER_JS_INVADING_ENABLED, true)
     /**
+     * The probability to block resource requests.
+     * */
+    val resourceBlockProbability get() = conf.getFloat(BROWSER_RESOURCE_BLOCK_PROBABILITY, 0.0f)
+    /**
      * Check if url blocking is enabled.
      * If true and blocking rules are set, resources matching the rules will be blocked by the browser.
      * */
-    val isUrlBlockingEnabled get() = conf.getBoolean(BROWSER_ENABLE_URL_BLOCKING, false)
+    @Deprecated("Use resourceBlockProbability instead", ReplaceWith("resourceBlockProbability > 0"))
+    val isUrlBlockingEnabled get() = resourceBlockProbability > 0
     /**
      * Check if user agent overriding is enabled. User agent overriding disabled by default,
      * since inappropriate user agent overriding will be detected by the target website and
@@ -298,7 +328,8 @@ open class BrowserSettings(
      *
      * Pulsar checks document ready using javascript so just set the strategy to be none.
      *
-     * @see <a href='https://blog.knoldus.com/page-loading-strategy-in-the-selenium-webdriver/'>Page Loading Strategy</a>
+     * @see <a href='https://blog.knoldus.com/page-loading-strategy-in-the-selenium-webdriver/'>
+     *     Page Loading Strategy</a>
      * */
     var pageLoadStrategy = "none"
 
@@ -331,12 +362,16 @@ enum class DisplayMode { SUPERVISED, GUI, HEADLESS }
 /**
  * The interaction settings
  * */
-data class InteractSettings(
+data class InteractSettings constructor(
     var scrollCount: Int = 10,
     var scrollInterval: Duration = Duration.ofMillis(500),
     var scriptTimeout: Duration = Duration.ofMinutes(1),
-    var pageLoadTimeout: Duration = Duration.ofMinutes(3)
+    var pageLoadTimeout: Duration = Duration.ofMinutes(3),
+    var bringToFront: Boolean = false,
+    // (0.2, 0.3, 0.5, 0.75, 0.5, 0.4, 0.5, 0.75)
+    var initScrollPositions: String = "0.3,0.75,0.4,0.5"
 ) {
+    @JsonIgnore
     var delayPolicy: (String) -> Long = { type ->
         when (type) {
             "gap" -> 500L + Random.nextInt(500)
@@ -357,25 +392,96 @@ data class InteractSettings(
         pageLoadTimeout = conf.getDuration(FETCH_PAGE_LOAD_TIMEOUT, Duration.ofMinutes(3)),
     )
 
+    /**
+     * TODO: just use an InteractSettings object, instead of separate properties
+     * */
     fun overrideSystemProperties() {
+        Systems.setProperty(FETCH_INTERACT_SETTINGS,
+            pulsarObjectMapper().writeValueAsString(this))
+
         Systems.setProperty(FETCH_SCROLL_DOWN_COUNT, scrollCount)
         Systems.setProperty(FETCH_SCROLL_DOWN_INTERVAL, scrollInterval)
         Systems.setProperty(FETCH_SCRIPT_TIMEOUT, scriptTimeout)
         Systems.setProperty(FETCH_PAGE_LOAD_TIMEOUT, pageLoadTimeout)
     }
 
+    /**
+     * TODO: just use an InteractSettings object, instead of separate properties
+     * */
     fun overrideConfiguration(conf: MutableConfig) {
+        Systems.setProperty(FETCH_INTERACT_SETTINGS,
+            pulsarObjectMapper().writeValueAsString(this))
+
         conf.setInt(FETCH_SCROLL_DOWN_COUNT, scrollCount)
         conf.setDuration(FETCH_SCROLL_DOWN_INTERVAL, scrollInterval)
         conf.setDuration(FETCH_SCRIPT_TIMEOUT, scriptTimeout)
         conf.setDuration(FETCH_PAGE_LOAD_TIMEOUT, pageLoadTimeout)
     }
+    
+    fun copy(settings: InteractSettings): InteractSettings {
+        scrollCount = settings.scrollCount
+        scrollInterval = settings.scrollInterval
+        scriptTimeout = settings.scriptTimeout
+        pageLoadTimeout = settings.pageLoadTimeout
+        bringToFront = settings.bringToFront
+        initScrollPositions = settings.initScrollPositions
+
+        return this
+    }
+
+    fun noScroll(): InteractSettings {
+        initScrollPositions = ""
+        return this
+    }
+
+    fun goodNetwork() = copy(goodNetSettings)
+
+    fun worseNetwork() = copy(worseNetSettings)
+
+    fun worstNetwork() = copy(worstNetSettings)
+
+    fun buildInitScrollPositions(): List<Double> {
+        if (initScrollPositions.isBlank()) {
+            return listOf()
+        }
+
+        return initScrollPositions.split(",").mapNotNull { it.trim().toDoubleOrNull() }
+    }
+
+    fun buildScrollPositions(): List<Double> {
+        val positions = buildInitScrollPositions().toMutableList()
+
+        if (scrollCount <= 0) {
+            return positions
+        }
+
+        val random = Random.nextInt(3)
+        val enhancedScrollCount = (scrollCount + random - 1).coerceAtLeast(1)
+        // some website show lazy content only when the page is in the front.
+        repeat(enhancedScrollCount) { i ->
+            val ratio = (0.6 + 0.1 * i).coerceAtMost(0.8)
+            positions.add(ratio)
+        }
+
+        return positions
+    }
 
     companion object {
+        /**
+         * Default settings for Web page interaction behavior.
+         * */
         val DEFAULT = InteractSettings()
 
+        /**
+         * Web page interaction behavior settings under good network conditions, in which case we perform
+         * each action faster.
+         * */
         var goodNetSettings = InteractSettings()
 
+        /**
+         * Web page interaction behavior settings under worse network conditions, in which case we perform
+         * each action more slowly.
+         * */
         var worseNetSettings = InteractSettings(
             scrollCount = 10,
             scrollInterval = Duration.ofSeconds(1),
@@ -383,6 +489,10 @@ data class InteractSettings(
             Duration.ofMinutes(3),
         )
 
+        /**
+         * Web page interaction behavior settings under worst network conditions, in which case we perform
+         * each action very slowly.
+         * */
         var worstNetSettings = InteractSettings(
             scrollCount = 15,
             scrollInterval = Duration.ofSeconds(3),

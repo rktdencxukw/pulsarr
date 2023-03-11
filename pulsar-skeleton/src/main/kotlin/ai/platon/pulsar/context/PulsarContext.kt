@@ -29,6 +29,11 @@ interface PulsarContext {
     val id: Int
 
     /**
+     * The context id
+     * */
+    val isActive: Boolean
+
+    /**
      * An immutable config loaded from the config file at startup, and never changes
      * */
     val unmodifiedConfig: ImmutableConfig

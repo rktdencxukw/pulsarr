@@ -15,18 +15,16 @@
     <parent>
         <groupId>ai.platon</groupId>
         <artifactId>platon</artifactId>
-        <version>3.6.1-SNAPSHOT</version>
+        <version>3.6.0</version>
     </parent>
 
     <groupId>ai.platon.pulsar</groupId>
     <artifactId>pulsar</artifactId>
     <packaging>pom</packaging>
-    <version>1.10.4-SNAPSHOT</version>
+    <version>1.10.11-SNAPSHOT</version>
 
     <name>Pulsar</name>
-    <description>The easy way to crawl the Web:
-        turn large web sites into tables and charts using simple native API, SQL or REST API
-    </description>
+    <description>Scrape Web data at scale completely and accurately with high performance, distributed RPA.</description>
 
     <licenses>
         <license>
@@ -48,7 +46,7 @@
         <connection>scm:git:https://github.com/platonai/pulsar.git</connection>
         <developerConnection>scm:git:https://github.com/platonai/pulsar.git</developerConnection>
         <url>https://github.com/platonai/pulsar</url>
-        <tag>v1.10.4</tag>
+        <tag>v1.10.11</tag>
     </scm>
 
     <repositories>
@@ -87,37 +85,28 @@
             </modules>
         </profile>
 
-        <!-- This is a temporary profile for screenshot development -->
         <profile>
-            <id>develop-screenshot</id>
-
-            <modules>
-                <module>pulsar-skeleton</module>
-                <module>pulsar-plugins/pulsar-protocol</module>
-                <module>pulsar-tools/pulsar-browser</module>
-                <module>pulsar-app/pulsar-examples</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>develop-set1</id>
-
+            <id>dev-daily</id>
             <modules>
                 <module>pulsar-common</module>
                 <module>pulsar-persist</module>
+                <module>pulsar-third</module>
                 <module>pulsar-skeleton</module>
                 <module>pulsar-resources</module>
                 <module>pulsar-dom</module>
-                <module>pulsar-plugins/pulsar-protocol</module>
 
-                <module>pulsar-tools/pulsar-browser</module>
+                <module>pulsar-tools</module>
+                <module>pulsar-ql</module>
 
                 <module>pulsar-spring-support</module>
+                <module>pulsar-rest</module>
+
+                <module>pulsar-app</module>
             </modules>
         </profile>
 
         <profile>
-            <id>develop-plugins</id>
+            <id>dev-plugins</id>
 
             <modules>
                 <module>pulsar-skeleton</module>
@@ -667,27 +656,29 @@
             <groupId>org.jetbrains.kotlinx</groupId>
             <artifactId>kotlinx-coroutines-core</artifactId>
         </dependency>
+
     </dependencies>
 
     <properties>
-        <pulsar.skip.assembly>true</pulsar.skip.assembly>
-
-        <maven-exec-plugin.version>3.0.0</maven-exec-plugin.version>
-
-        <kotlin.version>1.7.20</kotlin.version>
+        <kotlin.version>1.5.32</kotlin.version>
         <kotlin.coroutine.version>1.6.4</kotlin.coroutine.version>
-
+<!--        <kotlin.version>1.6.20</kotlin.version>-->
         <pulsar-h2.version>1.4.196</pulsar-h2.version>
         <pulsar-jsoup.version>1.14.3</pulsar-jsoup.version>
+        <pulsar.skip.assembly>true</pulsar.skip.assembly>
 
         <dokka.version>1.4.32</dokka.version>
+        <maven-exec-plugin.version>3.0.0</maven-exec-plugin.version>
 
-        <spring-boot.version>2.6.12</spring-boot.version>
-        <spring.version>5.3.23</spring.version>
-        <spring-data-mongodb.version>3.3.9</spring-data-mongodb.version>
-        <spring-data-commons.version>2.6.9</spring-data-commons.version>
+        <commons-io.version>2.11.0</commons-io.version>
+        <jackson.version>2.13.4</jackson.version>
+        <gson.version>2.10.1</gson.version>
 
-        <tika.version>2.4.1</tika.version>
+        <spring.version>5.3.17</spring.version>
+        <!-- spring-data-mongo -->
+        <spring-data.version>3.1.15</spring-data.version>
+        <spring-boot.version>2.4.13</spring-boot.version>
+        <tika.version>2.3.0</tika.version>
         <autolink.version>0.10.0</autolink.version>
         <playwright.version>1.19.0</playwright.version>
 

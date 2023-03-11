@@ -3,6 +3,7 @@ package ai.platon.pulsar.crawl.event
 import ai.platon.pulsar.crawl.*
 
 abstract class AbstractLoadEvent(
+    @Deprecated("Url filtering should not be in load phase, crawl phase is better")
     override val onFilter: UrlFilterEventHandler = UrlFilterEventHandler(),
     override val onNormalize: UrlFilterEventHandler = UrlFilterEventHandler(),
     override val onWillLoad: UrlEventHandler = UrlEventHandler(),
@@ -36,7 +37,9 @@ abstract class AbstractLoadEvent(
 }
 
 abstract class AbstractCrawlEvent(
+    @Deprecated("Url filtering should not be in PageEvent")
     override val onFilter: UrlAwareEventFilter = UrlAwareEventFilter(),
+    @Deprecated("No need to normalize in a crawler")
     override val onNormalize: UrlAwareEventFilter = UrlAwareEventFilter(),
     override val onWillLoad: UrlAwareEventHandler = UrlAwareEventHandler(),
     override val onLoad: UrlAwareEventHandler = UrlAwareEventHandler(),
@@ -65,6 +68,9 @@ abstract class AbstractBrowseEvent(
     override val onWillInteract: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
     override val onDidInteract: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
 
+    override val onWillScroll: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
+    override val onDidScroll: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
+
     override val onWillCheckDocumentState: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
     override val onDocumentActuallyReady: WebPageWebDriverEventHandler = WebPageWebDriverEventHandler(),
 
@@ -91,6 +97,9 @@ abstract class AbstractBrowseEvent(
         onWillCheckDocumentState.addLast(other.onWillCheckDocumentState)
         onDocumentActuallyReady.addLast(other.onDocumentActuallyReady)
 
+        onWillScroll.addLast(other.onWillScroll)
+        onDidScroll.addLast(other.onDidScroll)
+
         onWillComputeFeature.addLast(other.onWillComputeFeature)
         onFeatureComputed.addLast(other.onFeatureComputed)
 
@@ -102,9 +111,9 @@ abstract class AbstractBrowseEvent(
 }
 
 abstract class AbstractPageEvent(
-    override val loadEvent: LoadEvent,
-    override val browseEvent: BrowseEvent,
-    override val crawlEvent: CrawlEvent
+    override var loadEvent: LoadEvent,
+    override var browseEvent: BrowseEvent,
+    override var crawlEvent: CrawlEvent
 ): PageEvent {
 
     override fun chain(other: PageEvent): PageEvent {

@@ -13,8 +13,6 @@ import ai.platon.pulsar.persist.RetryScope
 import ai.platon.pulsar.persist.WebPage
 import ai.platon.pulsar.common.browser.BrowserType
 import ai.platon.pulsar.common.config.CapabilityTypes
-import ai.platon.pulsar.persist.MutableWebPage
-import ai.platon.pulsar.persist.gora.GoraWebPage
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
@@ -126,7 +124,7 @@ class FetchTask constructor(
         val instanceSequencer = AtomicInteger()
 
         fun create(url: String, conf: VolatileConfig): FetchTask {
-            val page = GoraWebPage.newWebPage(url, conf)
+            val page = WebPage.newWebPage(url, conf)
             val priority = conf.getUint(CapabilityTypes.BROWSER_WEB_DRIVER_PRIORITY, 0)
             val browserType = conf.getEnum(CapabilityTypes.BROWSER_TYPE, BrowserType.PULSAR_CHROME)
             val fingerprint = Fingerprint(browserType)
@@ -156,14 +154,15 @@ class FetchResult(
     val isSuccess get() = status.isSuccess
     val isPrivacyRetry get() = status.isRetry(RetryScope.PRIVACY)
     val isCrawlRetry get() = status.isRetry(RetryScope.CRAWL)
-    val isSmall get() = status.args[ProtocolStatus.ARG_RETRY_REASON] == HtmlIntegrity.TOO_SMALL.toString()
+    val isCanceled get() = status.isCanceled()
+    val isSmall get() = status.retryReason.toString() == HtmlIntegrity.TOO_SMALL.toString()
 
     fun canceled() {
         response = ForwardingResponse.canceled(task.page)
     }
 
-    fun retry(retryScope: RetryScope) {
-        response = ForwardingResponse.retry(task.page, retryScope)
+    fun retry(retryScope: RetryScope, reason: String) {
+        response = ForwardingResponse.retry(task.page, retryScope, reason)
     }
 
     fun failed(t: Throwable?) {
@@ -175,15 +174,20 @@ class FetchResult(
         fun unchanged(task: FetchTask) = FetchResult(task, ForwardingResponse.unchanged(task.page))
         fun unfetched(task: FetchTask) = FetchResult(task, ForwardingResponse.unfetched(task.page))
         fun canceled(task: FetchTask) = FetchResult(task, ForwardingResponse.canceled(task.page))
-        fun retry(task: FetchTask, retryScope: RetryScope) = FetchResult(task, ForwardingResponse.retry(task.page, retryScope))
+        fun canceled(task: FetchTask, reason: String) = FetchResult(task, ForwardingResponse.canceled(task.page, reason))
+        fun retry(task: FetchTask, retryScope: RetryScope, reason: String) =
+            FetchResult(task, ForwardingResponse.retry(task.page, retryScope, reason))
 
-        fun privacyRetry(task: FetchTask) = retry(task, RetryScope.PRIVACY)
+        fun privacyRetry(task: FetchTask, reason: String) = retry(task, RetryScope.PRIVACY, reason)
         fun privacyRetry(task: FetchTask, reason: Exception) = FetchResult(task, ForwardingResponse.privacyRetry(task.page, reason))
 
-        fun crawlRetry(task: FetchTask) = FetchResult(task, ForwardingResponse.crawlRetry(task.page))
-        fun crawlRetry(task: FetchTask, delay: Duration) = FetchResult(task, ForwardingResponse.crawlRetry(task.page))
-            .also { (task.page as? MutableWebPage)?.retryDelay = delay }
+        fun crawlRetry(task: FetchTask, reason: String) =
+            FetchResult(task, ForwardingResponse.crawlRetry(task.page, reason))
+        fun crawlRetry(task: FetchTask, delay: Duration, message: String) =
+            FetchResult(task, ForwardingResponse.crawlRetry(task.page, message)).also { task.page.retryDelay = delay }
         fun crawlRetry(task: FetchTask, reason: Exception) = FetchResult(task, ForwardingResponse.crawlRetry(task.page, reason))
+        fun crawlRetry(task: FetchTask, delay: Duration, reason: Exception) =
+            FetchResult(task, ForwardingResponse.crawlRetry(task.page, reason)).also { task.page.retryDelay = delay }
 
         fun failed(task: FetchTask, e: Throwable?) = FetchResult(task, ForwardingResponse.failed(task.page, e))
     }

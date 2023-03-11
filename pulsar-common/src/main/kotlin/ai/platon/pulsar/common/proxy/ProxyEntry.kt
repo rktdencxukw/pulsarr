@@ -114,6 +114,19 @@ class ProxyEntry(
     var idleTimeout = Duration.ofMinutes(10)
     val idleTime get() = Duration.between(lastActiveTime, Instant.now())
     val isIdle get() = (numRunningTasks.get() == 0 && idleTime > idleTimeout)
+    /**
+     * Check if this proxy is ready to work.
+     * Note: idle proxy can still be ready. It's very common to visit a web page for more than 10 minutes.
+     * */
+    val isReady get() = !isGone && !isExpired && !isRetired && !isBanned
+
+    /**
+     * Get the readable proxy state.
+     * */
+    val readableState: String get() {
+        return listOf("retired" to isRetired, "idle" to isIdle, "ready" to isReady)
+            .filter { it.second }.joinToString(" ") { it.first }
+    }
 
     enum class BanState {
         OK, SEGMENT, HOST, OTHER;
@@ -223,7 +236,7 @@ class ProxyEntry(
     private fun formatDisplay(): String {
         val ban = if (isBanned) "[banned] " else ""
         val ttlStr = ttlDuration?.truncatedTo(ChronoUnit.SECONDS)?.readable() ?:"0s"
-        return "$ban[$hostPort => $outIp]($numFailedPages/$numSuccessPages/$ttlStr)"
+        return "$ban[$hostPort => $outIp]($numFailedPages/$numSuccessPages/$ttlStr)[$readableState]"
     }
 
     /**

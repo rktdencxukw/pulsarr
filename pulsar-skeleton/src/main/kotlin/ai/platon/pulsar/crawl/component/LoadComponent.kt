@@ -11,25 +11,24 @@ import ai.platon.pulsar.common.measure.ByteUnitConverter
 import ai.platon.pulsar.common.message.LoadStatusFormatter
 import ai.platon.pulsar.common.options.LoadOptions
 import ai.platon.pulsar.common.persist.ext.loadEvent
-import ai.platon.pulsar.common.urls.NormURL
+import ai.platon.pulsar.common.urls.NormUrl
 import ai.platon.pulsar.crawl.common.FetchEntry
 import ai.platon.pulsar.crawl.common.FetchState
 import ai.platon.pulsar.crawl.common.GlobalCacheFactory
 import ai.platon.pulsar.crawl.common.url.CompletableHyperlink
 import ai.platon.pulsar.crawl.common.url.toCompletableListenableHyperlink
 import ai.platon.pulsar.crawl.parse.ParseResult
-import ai.platon.pulsar.persist.MutableWebPage
 import ai.platon.pulsar.persist.WebDb
 import ai.platon.pulsar.persist.WebPage
-import ai.platon.pulsar.persist.gora.GWebPageAware
-import ai.platon.pulsar.persist.gora.GoraWebPage
 import ai.platon.pulsar.persist.gora.generated.GWebPage
 import ai.platon.pulsar.persist.model.ActiveDOMStat
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -71,6 +70,8 @@ class LoadComponent(
     private var numWrite = 0
     private val abnormalPage get() = WebPage.NIL.takeIf { !isActive }
 
+    private var reportCount = 0
+
     fun fetchState(page: WebPage, options: LoadOptions): CheckState {
         val protocolStatus = page.protocolStatus
 
@@ -85,52 +86,54 @@ class LoadComponent(
     }
 
     fun load(url: URL, options: LoadOptions): WebPage {
-        return abnormalPage ?: loadWithRetry(NormURL(url, options))
+        return abnormalPage ?: loadWithRetry(NormUrl(url, options))
     }
 
-    fun load(normURL: NormURL): WebPage {
-        return abnormalPage ?: loadWithRetry(normURL)
+    fun load(normUrl: NormUrl): WebPage {
+        return abnormalPage ?: loadWithRetry(normUrl)
     }
 
-    suspend fun loadDeferred(normURL: NormURL): WebPage {
-        return abnormalPage ?: loadWithRetryDeferred(normURL)
+    suspend fun loadDeferred(normUrl: NormUrl): WebPage {
+        return abnormalPage ?: loadWithRetryDeferred(normUrl)
     }
 
-    fun loadWithRetry(normURL: NormURL): WebPage {
-        if (normURL.isNil) {
+    fun loadWithRetry(normUrl: NormUrl): WebPage {
+        if (normUrl.isNil) {
             return WebPage.NIL
         }
 
-        var page = load0(normURL)
-        var n = normURL.options.nJitRetry
+        var page = load0(normUrl)
+        var n = normUrl.options.nJitRetry
         while (page.protocolStatus.isRetry && n-- > 0) {
-            page = load0(normURL)
+            page = load0(normUrl)
         }
         return page
     }
 
-    suspend fun loadWithRetryDeferred(normURL: NormURL): WebPage {
-        if (normURL.isNil) {
+    suspend fun loadWithRetryDeferred(normUrl: NormUrl): WebPage {
+        if (normUrl.isNil) {
             return WebPage.NIL
         }
 
-        var page = loadDeferred0(normURL)
-        var n = normURL.options.nJitRetry
+        var page = loadDeferred0(normUrl)
+        var n = normUrl.options.nJitRetry
         while (page.protocolStatus.isRetry && n-- > 0) {
-            page = loadDeferred0(normURL)
+            page = loadDeferred0(normUrl)
         }
         return page
     }
 
     /**
-     * Load all pages specified by [normURLs], wait until all pages are loaded or timeout
+     * Load all pages specified by [normUrls], wait until all pages are loaded or timeout
+     *
+     * TODO: use coroutine
      * */
-    fun loadAll(normURLs: Iterable<NormURL>): List<WebPage> {
-        if (!normURLs.iterator().hasNext()) {
+    fun loadAll(normUrls: Iterable<NormUrl>): List<WebPage> {
+        if (!normUrls.iterator().hasNext()) {
             return listOf()
         }
 
-        val futures = loadAllAsync(normURLs.filter { !it.isNil })
+        val futures = loadAllAsync(normUrls.filter { !it.isNil })
 
         logger.info("Waiting for {} completable links | @{}", futures.size, futures.hashCode())
 
@@ -144,81 +147,96 @@ class LoadComponent(
         return pages
     }
 
+    suspend fun loadAllDeferred(normUrls: Iterable<NormUrl>): List<WebPage> {
+        val deferredPages = LinkedBlockingQueue<Deferred<WebPage>>()
+        val jobs = normUrls.filter { !it.isNil }
+            .map { coroutineScope { launch { async { loadDeferred(it) }.also(deferredPages::add) } } }
+
+        logger.info("Waiting for {} completable links | @{}", jobs.size, jobs.hashCode())
+
+        jobs.joinAll()
+
+        val pages = deferredPages.mapNotNull { it.await().takeIf { it.isNotNil } }
+        logger.info("Finished {}/{} pages | @{}", pages.size, pages.size, pages.hashCode())
+
+        return pages
+    }
+
     /**
-     * Load a page specified by [normURL]
+     * Load a page specified by [normUrl]
      *
-     * @param normURL The normalized url
+     * @param normUrl The normalized url
      * @return A completable future of webpage
      * */
-    fun loadAsync(normURL: NormURL): CompletableFuture<WebPage> {
-        val link = normURL.toCompletableListenableHyperlink()
+    fun loadAsync(normUrl: NormUrl): CompletableFuture<WebPage> {
+        val link = normUrl.toCompletableListenableHyperlink()
         globalCache.urlPool.add(link)
         return link
     }
 
     /**
-     * Load all pages specified by [normURLs], wait until all pages are loaded or timeout
+     * Load all pages specified by [normUrls], wait until all pages are loaded or timeout
      * */
-    fun loadAllAsync(normURLs: Iterable<NormURL>): List<CompletableFuture<WebPage>> {
-        if (!normURLs.iterator().hasNext()) {
+    fun loadAllAsync(normUrls: Iterable<NormUrl>): List<CompletableFuture<WebPage>> {
+        if (!normUrls.iterator().hasNext()) {
             return listOf()
         }
 
-        val linkFutures = normURLs.asSequence().filter { !it.isNil }.distinctBy { it.spec }
+        val linkFutures = normUrls.asSequence().filter { !it.isNil }.distinctBy { it.spec }
             .map { it.toCompletableListenableHyperlink() }
             .toList()
         globalCache.urlPool.addAll(linkFutures)
         return linkFutures
     }
 
-    private fun load0(normURL: NormURL): WebPage {
-        val page = createPageShell(normURL)
-        return load1(normURL, page)
+    private fun load0(normUrl: NormUrl): WebPage {
+        val page = createPageShell(normUrl)
+        return load1(normUrl, page)
     }
 
-    private fun load1(normURL: NormURL, page: MutableWebPage): WebPage {
-        onWillLoad(normURL, page)
+    private fun load1(normUrl: NormUrl, page: WebPage): WebPage {
+        onWillLoad(normUrl, page)
 
-        fetchContentIfNecessary(normURL, page)
+        fetchContentIfNecessary(normUrl, page)
 
-        onLoaded(page, normURL)
+        onLoaded(page, normUrl)
 
         return page
     }
 
-    private suspend fun loadDeferred0(normURL: NormURL): WebPage {
-        val page = createPageShell(normURL)
-        return loadDeferred1(normURL, page)
+    private suspend fun loadDeferred0(normUrl: NormUrl): WebPage {
+        val page = createPageShell(normUrl)
+        return loadDeferred1(normUrl, page)
     }
 
-    private suspend fun loadDeferred1(normURL: NormURL, page: MutableWebPage): WebPage {
-        onWillLoad(normURL, page)
+    private suspend fun loadDeferred1(normUrl: NormUrl, page: WebPage): WebPage {
+        onWillLoad(normUrl, page)
 
-        fetchContentIfNecessaryDeferred(normURL, page)
+        fetchContentIfNecessaryDeferred(normUrl, page)
 
-        onLoaded(page, normURL)
+        onLoaded(page, normUrl)
 
         return page
     }
 
-    private fun fetchContentIfNecessary(normURL: NormURL, page: MutableWebPage) {
+    private fun fetchContentIfNecessary(normUrl: NormUrl, page: WebPage) {
         if (page.removeVar(VAR_REFRESH) != null) {
-            fetchContent(page, normURL)
+            fetchContent(page, normUrl)
         }
     }
 
-    private suspend fun fetchContentIfNecessaryDeferred(normURL: NormURL, page: MutableWebPage) {
+    private suspend fun fetchContentIfNecessaryDeferred(normUrl: NormUrl, page: WebPage) {
         if (page.removeVar(VAR_REFRESH) != null) {
-            fetchContentDeferred(page, normURL)
+            fetchContentDeferred(page, normUrl)
         }
     }
 
     /**
      * Create a page shell, the page shell is the process unit for most tasks.
      * */
-    private fun createPageShell(normURL: NormURL): MutableWebPage {
-        val cachedPage = getCachedPageOrNull(normURL)
-        var page = FetchEntry.createPageShell(normURL)
+    private fun createPageShell(normUrl: NormUrl): WebPage {
+        val cachedPage = getCachedPageOrNull(normUrl)
+        var page = FetchEntry.createPageShell(normUrl)
 
         if (cachedPage != null) {
             pageCacheHits.incrementAndGet()
@@ -226,9 +244,7 @@ class LoadComponent(
             // the cached page can be or not be persisted, but not guaranteed
             // if a page is loaded from cache, the content remains unchanged and should not persist to database
             // TODO: clone the underlying data or not?
-            if (cachedPage is GoraWebPage) {
-                page.unsafeCloneGPage(cachedPage)
-            }
+            page.unsafeCloneGPage(cachedPage)
             page.clearPersistContent()
 
             page.tmpContent = cachedPage.content
@@ -240,24 +256,26 @@ class LoadComponent(
             assert(page.isNotInternal)
         } else {
             // get the metadata of the page from the database, this is very fast for a crawler
-            // TODO: two step loading or one step loading?
-//            val loadedPage = webDb.getOrNull(normURL.spec, fields = metadataFields)
-            val loadedPage = webDb.getOrNull(normURL.spec)
+            // TODO: two step loading, or lazy loading page content
+//            val loadedPage = webDb.getOrNull(normUrl.spec, fields = metadataFields)
+            // loadedPage?.setLazyFieldLoader { webDb.getOrNull(normUrl.spec, field = GWebPage.Field.CONTENT) }
+            val loadedPage = webDb.getOrNull(normUrl.spec)
+
             dbGetCount.incrementAndGet()
             if (loadedPage != null) {
                 // override the old variables: args, href, etc
-                FetchEntry.initWebPage(loadedPage, normURL.options, normURL.hrefSpec)
+                FetchEntry.initWebPage(loadedPage, normUrl.options, normUrl.hrefSpec)
                 page = loadedPage
             }
 
-            initFetchState(normURL, page, loadedPage)
+            initFetchState(normUrl, page, loadedPage)
         }
 
         return page
     }
 
-    private fun initFetchState(normURL: NormURL, page: MutableWebPage, loadedPage: WebPage?): CheckState {
-        val options = normURL.options
+    private fun initFetchState(normUrl: NormUrl, page: WebPage, loadedPage: WebPage?): CheckState {
+        val options = normUrl.options
 
         val state = when {
             loadedPage == null -> CheckState(FetchState.NEW_PAGE, "nil 1")
@@ -275,8 +293,8 @@ class LoadComponent(
         return state
     }
 
-    private fun onWillLoad(normURL: NormURL, page: WebPage) {
-        val options = normURL.options
+    private fun onWillLoad(normUrl: NormUrl, page: WebPage) {
+        val options = normUrl.options
 
         shouldBe(options.conf, page.conf) { "Conf should be the same \n${options.conf} \n${page.conf}" }
 
@@ -287,13 +305,13 @@ class LoadComponent(
         }
     }
 
-    private fun onLoaded(page: MutableWebPage, normURL: NormURL) {
-        val options = normURL.options
+    private fun onLoaded(page: WebPage, normUrl: NormUrl) {
+        val options = normUrl.options
         val status = page.protocolStatus
 
         // handle page content
         if (!page.isCached) {
-            // processPageContent(page, normURL)
+            // processPageContent(page, normUrl)
         }
 
         // handle cache
@@ -304,18 +322,21 @@ class LoadComponent(
             pageCache.putDatum(page.url, page)
         }
 
-        if (!page.isCached) {
+        // TODO: Too many cancels in 1.10.x, so do not report canceled pages, it will be improved in the further version
+        if (!page.isCached && !page.isCanceled) {
             report(page)
         }
 
         // We might use the cached page's content in parse phase
-        // TODO: what if is canceled?
         if (options.parse) {
-            parse(page, normURL.options)
+            // TODO: do we need page.protocalStatus.isSuccess?
+            if (!page.isCanceled) {
+                parse(page, normUrl.options)
+            }
         }
 
         try {
-            val detail = normURL.detail
+            val detail = normUrl.detail
             // we might use the cached page's content in after load handler
             if (detail is CompletableHyperlink<*>) {
                 require(page.loadEvent?.onLoaded?.isNotEmpty == true) {
@@ -347,8 +368,8 @@ class LoadComponent(
      * if the page is fetched, the content is set by the fetch component, so we do not load it from the database
      * if the protocol status is not success, the content is useless and not loaded
      * */
-    private fun processPageContent(page: MutableWebPage, normURL: NormURL) {
-        val options = normURL.options
+    private fun processPageContent(page: WebPage, normUrl: NormUrl) {
+        val options = normUrl.options
 
         if (page.protocolStatus.isSuccess && page.content == null) {
             shouldBe(false, page.isFetched) { "Page should not be fetched | ${page.configuredUrl}" }
@@ -357,9 +378,7 @@ class LoadComponent(
             if (contentPage != null) {
                 page.content = contentPage.content
                 // TODO: test the dirty flag
-                if (page is GWebPageAware) {
-                    page.gWebPage.clearDirty(GWebPage.Field.CONTENT.index)
-                }
+                page.unbox().clearDirty(GWebPage.Field.CONTENT.index)
             }
         }
 
@@ -370,12 +389,20 @@ class LoadComponent(
         if (taskLogger.isInfoEnabled) {
             val verbose = taskLogger.isDebugEnabled
             val report = LoadStatusFormatter(page, withSymbolicLink = verbose, withOptions = true).toString()
+
             taskLogger.info(report)
+
+            if (reportCount == 0) {
+                val logExplainUrl = "https://github.com/platonai/pulsarr/blob/master/docs/log-format.adoc"
+                taskLogger.info("Log explanation: $logExplainUrl")
+            }
+
+            ++reportCount
         }
     }
 
-    private fun getCachedPageOrNull(normURL: NormURL): WebPage? {
-        val (url, options) = normURL
+    private fun getCachedPageOrNull(normUrl: NormUrl): WebPage? {
+        val (url, options) = normUrl
         if (options.refresh) {
             // refresh the page, do not take cached version
             return null
@@ -389,8 +416,8 @@ class LoadComponent(
             // here is a complex logic for a ScrapingHyperlink: the page have an event handlers, and the page can
             // also be loaded inside an event handler. We must handle such situation very carefully
 
-            // page.conf = normURL.options.conf
-            // page.args = normURL.args
+            // page.conf = normUrl.options.conf
+            // page.args = normUrl.args
 
             return cachedPage
         }
@@ -398,42 +425,40 @@ class LoadComponent(
         return null
     }
 
-    private fun beforeFetch(page: MutableWebPage, options: LoadOptions) {
+    private fun beforeFetch(page: WebPage, options: LoadOptions) {
         // require(page.options == options)
         page.setVar(VAR_PREV_FETCH_TIME_BEFORE_UPDATE, page.prevFetchTime)
         globalCache.fetchingCache.add(page.url)
         logger.takeIf { it.isDebugEnabled }?.debug("Loading url | {} {}", page.url, page.args)
     }
 
-    private fun fetchContent(page: MutableWebPage, normURL: NormURL) {
+    private fun fetchContent(page: WebPage, normUrl: NormUrl) {
         try {
-            beforeFetch(page, normURL.options)
+            beforeFetch(page, normUrl.options)
 
-            require(page.conf == normURL.options.conf)
-//            require(normURL.options.eventHandler != null)
+            require(page.conf == normUrl.options.conf)
+//            require(normUrl.options.eventHandler != null)
 //            require(page.conf.getBeanOrNull(PulsarEventHandler::class) != null)
 
             fetchComponent.fetchContent(page)
         } finally {
-            afterFetch(page, normURL.options)
+            afterFetch(page, normUrl.options)
         }
     }
 
-    private suspend fun fetchContentDeferred(page: MutableWebPage, normURL: NormURL) {
+    private suspend fun fetchContentDeferred(page: WebPage, normUrl: NormUrl) {
         try {
-            beforeFetch(page, normURL.options)
+            beforeFetch(page, normUrl.options)
             fetchComponent.fetchContentDeferred(page)
         } finally {
-            afterFetch(page, normURL.options)
+            afterFetch(page, normUrl.options)
         }
     }
 
     private fun afterFetch(page: WebPage, options: LoadOptions) {
         // the metadata of the page is loaded from database but the content is not cached,
         // so load the content again
-        if (page is MutableWebPage) {
-            updateFetchSchedule(page, options)
-        }
+        updateFetchSchedule(page, options)
         globalCache.fetchingCache.remove(page.url)
     }
 
@@ -446,7 +471,7 @@ class LoadComponent(
         val protocolStatus = page.protocolStatus
 
         if (options.refresh) {
-            (page as? MutableWebPage)?.fetchRetries = 0
+            page.fetchRetries = 0
             return CheckState(FetchState.REFRESH, "refresh")
         }
 
@@ -455,7 +480,7 @@ class LoadComponent(
             return CheckState(FetchState.RETRY, "retry")
         } else if (protocolStatus.isFailed && !ignoreFailure) {
             // Failed to fetch the page last time, it might be caused by page is gone
-            // in such case, do not fetch it even it it's expired, unless the retryFailed flag is set
+            // in such case, do not fetch it even it's expired, unless the retryFailed flag is set
             return CheckState(FetchState.DO_NOT_FETCH, "failed")
         }
 
@@ -500,7 +525,7 @@ class LoadComponent(
         return CheckState(FetchState.DO_NOT_FETCH, "unknown")
     }
 
-    private fun updateFetchSchedule(page: MutableWebPage, options: LoadOptions) {
+    private fun updateFetchSchedule(page: WebPage, options: LoadOptions) {
         if (page.isInternal) {
             logger.warn("Unexpected internal page [updateFetchSchedule]")
             return
@@ -519,14 +544,14 @@ class LoadComponent(
     private fun persist(page: WebPage, options: LoadOptions) {
         // Remove content if storingContent is false. Content is added to page earlier
         // so PageParser is able to parse it, now, we can clear it
-        if (!options.storeContent && page.content != null && page is MutableWebPage) {
+        if (!options.storeContent && page.content != null) {
             page.clearPersistContent()
         }
 
         // the content is loaded from cache, the content remains unchanged, do not persist it
-        if (page.isCached && page is GWebPageAware) {
-            page.gWebPage.clearDirty(GWebPage.Field.CONTENT.index)
-            assert(!page.gWebPage.isContentDirty)
+        if (page.isCached) {
+            page.unbox().clearDirty(GWebPage.Field.CONTENT.index)
+            assert(!page.unbox().isContentDirty)
         }
 
         webDb.put(page)

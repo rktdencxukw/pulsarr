@@ -30,7 +30,6 @@ import ai.platon.pulsar.crawl.protocol.ProtocolNotFound
 import ai.platon.pulsar.crawl.protocol.ProtocolOutput
 import ai.platon.pulsar.crawl.protocol.http.ProtocolStatusTranslator
 import ai.platon.pulsar.persist.*
-import ai.platon.pulsar.persist.gora.GoraWebPage
 import ai.platon.pulsar.persist.metadata.Mark
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,7 +55,7 @@ open class FetchComponent(
      * @param url The url of web page to fetch
      * @return The fetch result
      */
-    fun fetch(url: String) = abnormalPage ?: fetchContent(GoraWebPage.newWebPage(url, immutableConfig.toVolatileConfig()))
+    fun fetch(url: String) = abnormalPage ?: fetchContent(WebPage.newWebPage(url, immutableConfig.toVolatileConfig()))
 
     /**
      * Fetch an url
@@ -73,7 +72,7 @@ open class FetchComponent(
      * @param page The page to fetch
      * @return The fetch result
      */
-    fun fetchContent(page: MutableWebPage) = abnormalPage ?: fetchContent0(FetchEntry(page, page.options))
+    fun fetchContent(page: WebPage) = abnormalPage ?: fetchContent0(FetchEntry(page, page.options))
 
     /**
      * Fetch a page
@@ -89,7 +88,7 @@ open class FetchComponent(
      * @param page The page to fetch
      * @return The fetch result
      */
-    suspend fun fetchContentDeferred(page: MutableWebPage) = abnormalPage ?: fetchContentDeferred0(page)
+    suspend fun fetchContentDeferred(page: WebPage) = abnormalPage ?: fetchContentDeferred0(page)
 
     /**
      * Fetch a page
@@ -121,7 +120,7 @@ open class FetchComponent(
      * @param page The page to fetch
      * @return The fetch result
      */
-    protected suspend fun fetchContentDeferred0(page: MutableWebPage): WebPage {
+    protected suspend fun fetchContentDeferred0(page: WebPage): WebPage {
         return try {
             onWillFetch(page)
 
@@ -152,7 +151,7 @@ open class FetchComponent(
         }
     }
 
-    protected fun processProtocolOutput(page: MutableWebPage, output: ProtocolOutput): MutableWebPage {
+    protected fun processProtocolOutput(page: WebPage, output: ProtocolOutput): WebPage {
         val protocolStatus = output.protocolStatus
         if (protocolStatus.isCanceled) {
             page.isCanceled = true
@@ -188,9 +187,10 @@ open class FetchComponent(
     }
 
     private fun updateFetchedPage(
-        page: MutableWebPage, pageDatum: PageDatum?,
+        page: WebPage, pageDatum: PageDatum?,
         protocolStatus: ProtocolStatus, crawlStatus: CrawlStatus,
     ): WebPage {
+        val pageExt = WebPageExt(page)
         updateStatus(page, protocolStatus, crawlStatus)
 
         pageDatum?.also {
@@ -210,7 +210,7 @@ open class FetchComponent(
             it.lastBrowser?.let { page.lastBrowser = it }
 
             if (protocolStatus.isSuccess) {
-                updateContent(page, it)
+                pageExt.updateContent(it)
             }
         }
 
@@ -237,7 +237,7 @@ open class FetchComponent(
     companion object {
         private val logger = LoggerFactory.getLogger(FetchComponent::class.java)
 
-        fun updateStatus(page: MutableWebPage, protocolStatus: ProtocolStatus, crawlStatus: CrawlStatus) {
+        fun updateStatus(page: WebPage, protocolStatus: ProtocolStatus, crawlStatus: CrawlStatus) {
             page.crawlStatus = crawlStatus
             page.protocolStatus = protocolStatus
             page.updateFetchCount()
@@ -246,24 +246,6 @@ open class FetchComponent(
         fun updateMarks(page: WebPage) {
             val marks = page.marks
             marks.putIfNotNull(Mark.FETCH, marks[Mark.GENERATE])
-        }
-
-        fun updateContent(page: MutableWebPage, pageDatum: PageDatum, contentTypeHint: String? = null) {
-            var contentType = contentTypeHint
-
-            page.setContent(pageDatum.content)
-
-            if (contentType != null) {
-                pageDatum.contentType = contentType
-            } else {
-                contentType = pageDatum.contentType
-            }
-
-            if (contentType != null) {
-                page.contentType = contentType
-            } else {
-                logger.warn("Failed to determine content type!")
-            }
         }
     }
 }

@@ -1,23 +1,24 @@
 package ai.platon.pulsar.session
 
+import ai.platon.pulsar.common.BeanFactory
 import ai.platon.pulsar.common.CheckState
+import ai.platon.pulsar.common.ExperimentalApi
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.config.VolatileConfig
 import ai.platon.pulsar.common.options.LoadOptions
-import ai.platon.pulsar.common.urls.NormURL
+import ai.platon.pulsar.common.urls.NormUrl
 import ai.platon.pulsar.common.urls.UrlAware
 import ai.platon.pulsar.context.PulsarContext
 import ai.platon.pulsar.crawl.PageEvent
 import ai.platon.pulsar.crawl.common.DocumentCatch
 import ai.platon.pulsar.crawl.common.GlobalCache
+import ai.platon.pulsar.crawl.common.GlobalCacheFactory
 import ai.platon.pulsar.crawl.common.PageCatch
 import ai.platon.pulsar.crawl.fetch.driver.WebDriver
 import ai.platon.pulsar.dom.FeaturedDocument
 import ai.platon.pulsar.persist.WebPage
-import ai.platon.pulsar.persist.experimental.WebAsset
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
-import kotlin.jvm.Throws
 
 /**
  * [PulsarSession] defines an interface to load webpages from local storage or fetch from the Internet,
@@ -77,7 +78,7 @@ import kotlin.jvm.Throws
  * [WebDriver] provides a complete method set for RPA, just like selenium, playwright
  * and puppeteer does, all actions and behaviors are optimized to mimic real people as closely as possible.
  * */
-interface PulsarSession {
+interface PulsarSession : AutoCloseable {
 
     /**
      * The session id
@@ -98,6 +99,11 @@ interface PulsarSession {
     val unmodifiedConfig: ImmutableConfig
 
     /**
+     * The scoped bean factory: for each volatileConfig object, there is a bean factory
+     * */
+    @Deprecated("Not used any more")
+    val sessionBeanFactory: BeanFactory
+    /**
      * A short descriptive display text.
      * */
     val display: String
@@ -114,6 +120,8 @@ interface PulsarSession {
      * */
     val globalCache: GlobalCache
 
+    @Deprecated("Factory should not be a interface property, globalCache is OK")
+    val globalCacheFactory: GlobalCacheFactory
     /**
      * Close objects when the session closes
      * */
@@ -129,79 +137,81 @@ interface PulsarSession {
     fun options(args: String = "", event: PageEvent? = null): LoadOptions
 
     /**
-     * Get a property from the session config.
+     * Get a property.
      * */
     fun property(name: String): String?
 
     /**
-     * Set a property to the session config.
+     * Set a session scope property.
      * */
     fun property(name: String, value: String)
     /**
      * Normalize a url.
      * */
-    fun normalize(url: String): NormURL
-    /**
-     * Normalize a url with arguments.
-     * */
-    fun normalize(url: String, args: String): NormURL
-    /**
-     * Normalize a url with options.
-     * */
-    fun normalize(url: String, options: LoadOptions): NormURL
-    /**
-     * Normalize a url with options, return null if the url is not normal.
-     * */
-    fun normalizeOrNull(url: String?, options: LoadOptions = options()): NormURL?
-    /**
-     * Normalize urls.
-     * */
-    fun normalize(urls: Iterable<String>): List<NormURL>
-    /**
-     * Normalize urls with arguments.
-     * */
-    fun normalize(urls: Iterable<String>, args: String): List<NormURL>
-    /**
-     * Normalize urls with options.
-     * */
-    fun normalize(urls: Iterable<String>, options: LoadOptions): List<NormURL>
+    fun normalize(url: String): NormUrl
     /**
      * Normalize a url.
      * */
-    fun normalize(url: UrlAware): NormURL
+    fun normalize(url: String, args: String, toItemOption: Boolean = false): NormUrl
     /**
-     * Normalize a url with arguments.
+     * Normalize a url.
      * */
-    fun normalize(url: UrlAware, args: String): NormURL
+    fun normalize(url: String, options: LoadOptions, toItemOption: Boolean = false): NormUrl
     /**
-     * Normalize a url with options.
+     * Normalize a url.
      * */
-    fun normalize(url: UrlAware, options: LoadOptions): NormURL
-    /**
-     * Normalize a url with options.
-     * */
-    fun normalizeOrNull(url: UrlAware?, options: LoadOptions = options()): NormURL?
+    fun normalizeOrNull(url: String?, options: LoadOptions = options(), toItemOption: Boolean = false): NormUrl?
     /**
      * Normalize urls.
      * */
-    fun normalize(urls: Collection<UrlAware>): List<NormURL>
+    fun normalize(urls: Iterable<String>): List<NormUrl>
+    /**
+     * Normalize urls.
+     * */
+    fun normalize(urls: Iterable<String>, args: String, toItemOption: Boolean = false): List<NormUrl>
+    /**
+     * Normalize urls.
+     * */
+    fun normalize(urls: Iterable<String>, options: LoadOptions, toItemOption: Boolean = false): List<NormUrl>
+    /**
+     * Normalize a url.
+     * */
+    fun normalize(url: UrlAware): NormUrl
+    /**
+     * Normalize a url.
+     * */
+    fun normalize(url: UrlAware, args: String, toItemOption: Boolean = false): NormUrl
+    /**
+     * Normalize a url.
+     * */
+    fun normalize(url: UrlAware, options: LoadOptions, toItemOption: Boolean = false): NormUrl
+    /**
+     * Normalize a url.
+     * */
+    fun normalizeOrNull(url: UrlAware?, options: LoadOptions = options(), toItemOption: Boolean = false): NormUrl?
+    /**
+     * Normalize urls.
+     * */
+    fun normalize(urls: Collection<UrlAware>): List<NormUrl>
     /**
      * Normalize urls, remove invalid ones
      *
      * @param urls The urls to normalize
      * @param args The arguments
+     * @param toItemOption If the LoadOptions is converted to item load options
      * @return All normalized urls, all invalid input urls are removed
      * */
-    fun normalize(urls: Collection<UrlAware>, args: String): List<NormURL>
+    fun normalize(urls: Collection<UrlAware>, args: String, toItemOption: Boolean = false): List<NormUrl>
 
     /**
      * Normalize urls, remove invalid ones
      *
      * @param urls The urls to normalize
      * @param options The LoadOptions applied to each url
+     * @param toItemOption If the LoadOptions is converted to item load options
      * @return All normalized urls, all invalid input urls are removed
      * */
-    fun normalize(urls: Collection<UrlAware>, options: LoadOptions): List<NormURL>
+    fun normalize(urls: Collection<UrlAware>, options: LoadOptions, toItemOption: Boolean = false): List<NormUrl>
 
     /**
      * Inject a url as a seed to fetch. Injection is usually used in Nutch style crawls
@@ -356,10 +366,10 @@ interface PulsarSession {
      * This method first checks the url in the local store and return the local version if the page
      * exists and matches the requirements, otherwise fetch it from the Internet.
      *
-     * @param normURL The normal url
+     * @param url The normal url
      * @return The webpage loaded or NIL
      */
-    fun load(normURL: NormURL): WebPage
+    fun load(url: NormUrl): WebPage
 
     /**
      * Load a url with specified options.
@@ -430,10 +440,10 @@ interface PulsarSession {
      * This function is a kotlin suspend function, which could be started, paused, and resume.
      * Suspend functions are only allowed to be called from a coroutine or another suspend function.
      *
-     * @param normURL The normal url
+     * @param url The normal url
      * @return The webpage loaded or NIL
      */
-    suspend fun loadDeferred(normURL: NormURL): WebPage
+    suspend fun loadDeferred(url: NormUrl): WebPage
 
     /**
      * Load all urls with specified options
@@ -511,10 +521,10 @@ interface PulsarSession {
      * This method first checks each url in the local store and return the local version if the page
      * exists and matches the requirements, otherwise fetch it from the Internet.
      *
-     * @param normURLs    The normal urls to load
+     * @param normUrls    The normal urls to load
      * @return The loaded webpages
      */
-    fun loadAll(normURLs: List<NormURL>): List<WebPage>
+    fun loadAll(normUrls: List<NormUrl>): List<WebPage>
 
     /**
      * Load a normal url in java async style
@@ -570,7 +580,7 @@ interface PulsarSession {
      * @param url     The normal url to load
      * @return A completable future of webpage
      */
-    fun loadAsync(url: NormURL): CompletableFuture<WebPage>
+    fun loadAsync(url: NormUrl): CompletableFuture<WebPage>
 
     /**
      * Load all normal urls in java async style
@@ -647,7 +657,7 @@ interface PulsarSession {
      * @param urls The normal urls to load
      * @return The completable futures of webpages
      */
-    fun loadAllAsync(urls: List<NormURL>): List<CompletableFuture<WebPage>>
+    fun loadAllAsync(urls: List<NormUrl>): List<CompletableFuture<WebPage>>
 
     /**
      * Submit a url to the URL pool, the url will be processed in the crawl loop later
@@ -739,8 +749,13 @@ interface PulsarSession {
     // No such version, it's too complicated to handle events
     // fun submitAll(urls: Collection<UrlAware>, options: LoadOptions): PulsarSession
 
+    // No such confusing version
+    // fun loadOutPages(portalUrl: String): List<WebPage>
+
     /**
      * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
      *
      * @param portalUrl    The portal url from where to load pages
      * @param args         The load arguments
@@ -751,14 +766,46 @@ interface PulsarSession {
     /**
      * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option.
      *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
      * @param portalUrl The portal url from where to load pages
      * @param options   The load options
      * @return The loaded out pages
      */
-    fun loadOutPages(portalUrl: String, options: LoadOptions = options()): List<WebPage>
+    fun loadOutPages(portalUrl: String, options: LoadOptions): List<WebPage>
+
+    // No such confusing version
+    // fun loadOutPages(portalUrl: UrlAware): List<WebPage>
+
+    /**
+     * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
+     * @param portalUrl    The portal url from where to load pages
+     * @param args         The load arguments
+     * @return The loaded out pages
+     */
+    fun loadOutPages(portalUrl: UrlAware, args: String): List<WebPage>
+
+    /**
+     * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
+     * @param portalUrl The portal url from where to load pages
+     * @param options   The load options
+     * @return The loaded out pages
+     */
+    fun loadOutPages(portalUrl: UrlAware, options: LoadOptions): List<WebPage>
+
+    // No such confusing version
+    // fun loadOutPages(portalUrl: NormUrl): List<WebPage>
 
     /**
      * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option asynchronously.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
      *
      * @param portalUrl The portal url from where to load pages
      * @param args   The load arguments
@@ -769,6 +816,8 @@ interface PulsarSession {
     /**
      * Load or fetch the portal page, and then load or fetch the out links selected by `-outLink` option asynchronously.
      *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
      * @param portalUrl The portal url from where to load pages
      * @param options   The load options
      * @return The loaded out pages
@@ -777,6 +826,8 @@ interface PulsarSession {
 
     /**
      * Load the portal page and submit the out links specified by the `-outLink` option to the URL pool.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
      *
      * The submitted urls will be processed in a crawl loop later.
      *
@@ -789,32 +840,68 @@ interface PulsarSession {
     /**
      * Load the portal page and submit the out links specified by the `-outLink` option to the URL pool.
      *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
      * The submitted urls will be processed in a crawl loop later.
      *
      * @param portalUrl The portal url from where to load pages
      * @param options   The load options
      * @return The [PulsarSession] itself to enable chained operation
      */
-    fun submitOutPages(portalUrl: String, options: LoadOptions = options()): PulsarSession
+    fun submitOutPages(portalUrl: String, options: LoadOptions): PulsarSession
+
+    /**
+     * Load the portal page and submit the out links specified by the `-outLink` option to the URL pool.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
+     * The submitted urls will be processed in a crawl loop later.
+     *
+     * @param portalUrl The portal url from where to load pages
+     * @param args      The load arguments
+     * @return The [PulsarSession] itself to enable chained operation
+     */
+    fun submitOutPages(portalUrl: UrlAware, args: String): PulsarSession
+
+    /**
+     * Load the portal page and submit the out links specified by the `-outLink` option to the URL pool.
+     *
+     * Option `-outLink` specifies the cssSelector for links in the portal page to load.
+     *
+     * The submitted urls will be processed in a crawl loop later.
+     *
+     * @param portalUrl The portal url from where to load pages
+     * @param options   The load options
+     * @return The [PulsarSession] itself to enable chained operation
+     */
+    fun submitOutPages(portalUrl: UrlAware, options: LoadOptions): PulsarSession
 
     /**
      * Load a url as a resource without browser rendering.
      *
      * @param url  The url to load
      * @param referrer The referrer URL
-     * @param args The load arguments
-     * @return The web asset containing the resource
+     * @return The webpage containing the resource
      */
-    fun loadResource(url: String, referrer: String, args: String): WebAsset
+    fun loadResource(url: String, referrer: String): WebPage
+    /**
+     * Load a url as a resource without browser rendering.
+     *
+     * @param url  The url to load
+     * @param referrer The referrer URL
+     * @param args The load arguments
+     * @return The webpage containing the resource
+     */
+    fun loadResource(url: String, referrer: String, args: String): WebPage
     /**
      * Load a url as a resource without browser rendering.
      *
      * @param url     The url to load
      * @param referrer The referrer URL
      * @param options The load options
-     * @return The web asset containing the resource
+     * @return The webpage containing the resource
      */
-    fun loadResource(url: String, referrer: String, options: LoadOptions = options()): WebAsset
+    fun loadResource(url: String, referrer: String, options: LoadOptions): WebPage
 
     /**
      * Load a url as a resource without browser rendering.
@@ -824,10 +911,21 @@ interface PulsarSession {
      *
      * @param url  The url to load
      * @param referrer The referrer URL
-     * @param args The load arguments
-     * @return The web asset containing the resource
+     * @return The webpage containing the resource
      */
-    suspend fun loadResourceDeferred(url: String, referrer: String, args: String): WebAsset
+    suspend fun loadResourceDeferred(url: String, referrer: String): WebPage
+    /**
+     * Load a url as a resource without browser rendering.
+     *
+     * This function is a kotlin suspend function, which could be started, paused, and resume.
+     * Suspend functions are only allowed to be called from a coroutine or another suspend function.
+     *
+     * @param url  The url to load
+     * @param referrer The referrer URL
+     * @param args The load arguments
+     * @return The webpage containing the resource
+     */
+    suspend fun loadResourceDeferred(url: String, referrer: String, args: String): WebPage
     /**
      * Load a url as a resource without browser rendering.
      *
@@ -837,9 +935,9 @@ interface PulsarSession {
      * @param url     The url to load
      * @param referrer The referrer URL
      * @param options The load options
-     * @return The web asset containing the resource
+     * @return The webpage containing the resource
      */
-    suspend fun loadResourceDeferred(url: String, referrer: String, options: LoadOptions = options()): WebAsset
+    suspend fun loadResourceDeferred(url: String, referrer: String, options: LoadOptions): WebPage
     /**
      * Parse a webpage into an HTML document.
      */
@@ -847,7 +945,7 @@ interface PulsarSession {
     /**
      * Parse a webpage into an HTML document.
      */
-    fun parse(page: WebPage, noCache: Boolean = false): FeaturedDocument
+    fun parse(page: WebPage, noCache: Boolean): FeaturedDocument
     /**
      * Load or fetch a webpage and parse it into an HTML document
      * */
@@ -859,11 +957,23 @@ interface PulsarSession {
     /**
      * Load or fetch a webpage and parse it into an HTML document
      * */
-    fun loadDocument(url: String, options: LoadOptions = options()): FeaturedDocument
+    fun loadDocument(url: String, options: LoadOptions): FeaturedDocument
+    /**
+     * Load or fetch a webpage and parse it into an HTML document
+     * */
+    fun loadDocument(url: UrlAware): FeaturedDocument
+    /**
+     * Load or fetch a webpage and parse it into an HTML document
+     * */
+    fun loadDocument(url: UrlAware, args: String): FeaturedDocument
+    /**
+     * Load or fetch a webpage and parse it into an HTML document
+     * */
+    fun loadDocument(url: UrlAware, options: LoadOptions): FeaturedDocument
     /**
      * Load or fetch a webpage and then parse it into an HTML document.
      * */
-    fun loadDocument(normURL: NormURL): FeaturedDocument
+    fun loadDocument(url: NormUrl): FeaturedDocument
     /**
      * Load or fetch a webpage located by the given url, and then extract fields specified by
      * field selectors.
@@ -970,6 +1080,7 @@ interface PulsarSession {
      * @return All extracted fields. For each out page, fields extracted
      *          with their selectors are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(portalUrl: String, args: String, fieldSelectors: Iterable<String>): List<Map<String, String?>>
 
     /**
@@ -981,6 +1092,7 @@ interface PulsarSession {
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their selectors are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(portalUrl: String, options: LoadOptions, fieldSelectors: Iterable<String>): List<Map<String, String?>>
 
     /**
@@ -993,6 +1105,7 @@ interface PulsarSession {
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their selectors are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(
         portalUrl: String, args: String, restrictSelector: String, fieldSelectors: Iterable<String>
     ): List<Map<String, String?>>
@@ -1003,11 +1116,11 @@ interface PulsarSession {
      *
      * @param portalUrl The portal url to start scraping
      * @param options Load options for both the portal page and out pages
-     * @param restrictSelector A CSS selector to locate a DOM in the out pages
-     *                         where all fields are restricted to
+     * @param restrictSelector A CSS selector to locate a DOM where all fields are restricted to
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their selectors are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(
         portalUrl: String, options: LoadOptions, restrictSelector: String, fieldSelectors: Iterable<String>
     ): List<Map<String, String?>>
@@ -1021,6 +1134,7 @@ interface PulsarSession {
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their names are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(portalUrl: String, args: String, fieldSelectors: Map<String, String>): List<Map<String, String?>>
 
     /**
@@ -1032,6 +1146,7 @@ interface PulsarSession {
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their names are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(portalUrl: String, options: LoadOptions, fieldSelectors: Map<String, String>): List<Map<String, String?>>
 
     /**
@@ -1040,11 +1155,11 @@ interface PulsarSession {
      *
      * @param portalUrl The portal url to start scraping
      * @param args Load arguments for both the portal page and out pages
-     * @param restrictSelector A CSS selector to locate a DOM in the out pages
-     *                         where all fields are restricted to
+     * @param restrictSelector A CSS selector to locate a DOM where all fields are restricted to
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their names are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(
         portalUrl: String, args: String, restrictSelector: String, fieldSelectors: Map<String, String>
     ): List<Map<String, String?>>
@@ -1055,11 +1170,11 @@ interface PulsarSession {
      *
      * @param portalUrl The portal url to start scraping
      * @param options Load options for both the portal page and out pages
-     * @param restrictSelector A CSS selector to locate a DOM in the out pages
-     *                         where all fields are restricted to
+     * @param restrictSelector A CSS selector to locate a DOM where all fields are restricted to
      * @param fieldSelectors CSS selectors to extract fields from out pages
      * @return All extracted fields. For each out page, fields extracted with their names are saved in a map.
      * */
+    @ExperimentalApi
     fun scrapeOutPages(
         portalUrl: String, options: LoadOptions, restrictSelector: String, fieldSelectors: Map<String, String>
     ): List<Map<String, String?>>
@@ -1075,7 +1190,13 @@ interface PulsarSession {
     fun setVariable(name: String, value: Any)
 
     /**
-     * Delete a page record from the storage
+     * Put session scope bean
+     * */
+    @Deprecated("Not used any more")
+    fun putSessionBean(obj: Any)
+
+    /**
+     * Delete a webpage from the storage
      * */
     fun delete(url: String)
 
@@ -1085,7 +1206,7 @@ interface PulsarSession {
     fun flush()
 
     /**
-     * Persist a page to the storage
+     * Persist to the storage
      * */
     fun persist(page: WebPage): Boolean
 
@@ -1096,7 +1217,25 @@ interface PulsarSession {
      * @param ident File name identifier used to distinguish from other names
      * @return The path of the exported page
      * */
+    fun export(page: WebPage): Path
+
+    /**
+     * Export the content of a webpage.
+     *
+     * @param page Page to export
+     * @param ident File name identifier used to distinguish from other names
+     * @return The path of the exported page
+     * */
     fun export(page: WebPage, ident: String = ""): Path
+
+    /**
+     * Export the outer HTML of the document.
+     *
+     * @param doc Document to export
+     * @param ident File name identifier used to distinguish from other names
+     * @return The path of the exported document
+     * */
+    fun export(doc: FeaturedDocument): Path
 
     /**
      * Export the outer HTML of the document.
@@ -1115,7 +1254,4 @@ interface PulsarSession {
      * @return The path of the exported document
      * */
     fun exportTo(doc: FeaturedDocument, path: Path): Path
-
-    @Throws(Exception::class)
-    fun close()
 }

@@ -4,6 +4,7 @@ import ai.platon.pulsar.browser.common.BrowserSettings
 import ai.platon.pulsar.common.browser.BrowserType
 import ai.platon.pulsar.common.geometric.PointD
 import ai.platon.pulsar.common.geometric.RectD
+import com.google.common.annotations.Beta
 import org.jsoup.Connection
 import java.io.Closeable
 import java.time.Duration
@@ -30,15 +31,33 @@ import kotlin.random.Random
  * * [pageSource]: retrieve the source code of a webpage.
  */
 interface WebDriver: Closeable {
-    enum class Status {
-        UNKNOWN, FREE, WORKING, CANCELED, RETIRED, CRASHED, QUIT;
+    /**
+     * Lifetime status
+     * */
+    enum class State {
+        INIT,
+        READY,
+        @Deprecated("Inappropriate name", ReplaceWith("READY"))
+        FREE,
+        WORKING,
+        @Deprecated("Inappropriate lifetime status", ReplaceWith("WebDriver.canceled"))
+        CANCELED,
+        RETIRED,
+        @Deprecated("Inappropriate lifetime status", ReplaceWith("WebDriver.crashed"))
+        CRASHED,
+        QUIT;
 
+        val isInit get() = this == INIT
+        @Deprecated("Inappropriate name", ReplaceWith("isReady"))
         val isFree get() = this == FREE
+        val isReady get() = this == READY || isFree
         val isWorking get() = this == WORKING
-        val isCanceled get() = this == CANCELED
-        val isRetired get() = this == RETIRED
-        val isCrashed get() = this == CRASHED
         val isQuit get() = this == QUIT
+        val isRetired get() = this == RETIRED
+        @Deprecated("Inappropriate lifetime status", ReplaceWith("WebDriver.isCanceled"))
+        val isCanceled get() = this == CANCELED
+        @Deprecated("Inappropriate lifetime status", ReplaceWith("WebDriver.isCrashed"))
+        val isCrashed get() = this == CRASHED
     }
 
     /**
@@ -76,13 +95,17 @@ interface WebDriver: Closeable {
      * */
     val isMockedPageSource: Boolean
     /**
-     * Indicate whether the driver is recovered from the browser's tab list.
+     * Whether the driver is recovered from the browser's tab list.
      * */
     var isRecovered: Boolean
     /**
+     * Whether the driver is recovered and is reused to serve new tasks.
+     * */
+    var isReused: Boolean
+    /**
      * The driver status.
      * */
-    val status: AtomicReference<Status>
+    val state: AtomicReference<State>
     /**
      * The time of the last action.
      * */
@@ -98,13 +121,17 @@ interface WebDriver: Closeable {
     /**
      * The timeout to wait for some object.
      * */
-    var waitForTimeout: Duration
+    var waitForElementTimeout: Duration
+
+    val isInit: Boolean
+    val isReady: Boolean
+    @Deprecated("Inappropriate name", ReplaceWith("isReady()"))
+    val isFree: Boolean
+    val isWorking: Boolean
+    val isRetired: Boolean
+    val isQuit: Boolean
 
     val isCanceled: Boolean
-    val isWorking: Boolean
-    val isQuit: Boolean
-    val isRetired: Boolean
-    val isFree: Boolean
     val isCrashed: Boolean
 
     @Deprecated("Not used any more")
@@ -116,7 +143,7 @@ interface WebDriver: Closeable {
     val delayPolicy: (String) -> Long get() = { 300L + Random.nextInt(500) }
 
     /**
-     * Returns the JvmWebDriver to support other JVM languages, such as java, clojure, scala, and so on,
+     * Returns a JvmWebDriver to support other JVM languages, such as java, clojure, scala, and so on,
      * which had difficulty handling kotlin suspend methods.
      * */
     fun jvm(): JvmWebDriver
@@ -130,17 +157,26 @@ interface WebDriver: Closeable {
      * its scripts were run. This is useful to amend the JavaScript environment, e.g.
      * to seed [Math.random].
      *
+     * This function should be invoked before a navigation, usually in an onWillNavigate
+     * event handler.
+     *
      * @param script Javascript source code to add.
      * */
     @Throws(WebDriverException::class)
     suspend fun addInitScript(script: String)
     /**
-     * Blocks URLs from loading.
+     * Blocks resource URLs from loading.
      *
      * @param urls URL patterns to block. Wildcards ('*') are allowed.
      */
     @Throws(WebDriverException::class)
     suspend fun addBlockedURLs(urls: List<String>)
+    /**
+     * Block resource URL loading with a certain probability.
+     *
+     * @param urls URL patterns to block.
+     */
+    suspend fun addProbabilityBlockedURLs(urls: List<String>)
     /**
      * Returns the main resource response. In case of multiple redirects, the navigation
      * will resolve with the first non-redirect response.
@@ -212,6 +248,9 @@ interface WebDriver: Closeable {
     suspend fun waitForNavigation(timeout: Duration): Long
 
     @Throws(WebDriverException::class)
+    suspend fun waitForPage(url: String, timeout: Duration): WebDriver?
+
+    @Throws(WebDriverException::class)
     suspend fun exists(selector: String): Boolean
     @Throws(WebDriverException::class)
     suspend fun isHidden(selector: String): Boolean = !isVisible(selector)
@@ -223,11 +262,20 @@ interface WebDriver: Closeable {
     suspend fun isChecked(selector: String): Boolean
 
     @Throws(WebDriverException::class)
+    suspend fun focus(selector: String)
+    @Throws(WebDriverException::class)
     suspend fun type(selector: String, text: String)
     @Throws(WebDriverException::class)
     suspend fun click(selector: String, count: Int = 1)
+
     @Throws(WebDriverException::class)
-    suspend fun clickMatches(selector: String, pattern: String, count: Int = 1)
+    suspend fun clickTextMatches(selector: String, pattern: String, count: Int = 1)
+    /**
+     * Use clickTextMatches instead
+     * */
+    @Deprecated("Inappropriate name", ReplaceWith("clickTextMatches(selector, pattern, count"))
+    @Throws(WebDriverException::class)
+    suspend fun clickMatches(selector: String, pattern: String, count: Int = 1) = clickTextMatches(selector, pattern, count)
     @Throws(WebDriverException::class)
     suspend fun clickMatches(selector: String, attrName: String, pattern: String, count: Int = 1)
     @Throws(WebDriverException::class)
@@ -256,6 +304,8 @@ interface WebDriver: Closeable {
     @Throws(WebDriverException::class)
     suspend fun moveMouseTo(x: Double, y: Double)
     @Throws(WebDriverException::class)
+    suspend fun moveMouseTo(selector: String, deltaX: Int, deltaY: Int = 0)
+    @Throws(WebDriverException::class)
     suspend fun dragAndDrop(selector: String, deltaX: Int, deltaY: Int = 0)
 
     @Throws(WebDriverException::class)
@@ -277,6 +327,16 @@ interface WebDriver: Closeable {
      * */
     @Throws(WebDriverException::class)
     suspend fun evaluate(expression: String): Any?
+    /**
+     * Executes JavaScript in the context of the currently selected frame or window. The script
+     * fragment provided will be executed as the body of an anonymous function.
+     *
+     * @param expression Javascript expression to evaluate
+     * @return expression result
+     * */
+    @Beta
+    @Throws(WebDriverException::class)
+    suspend fun evaluateDetail(expression: String): JsEvaluation?
     /**
      * Executes JavaScript in the context of the currently selected frame or window. The script
      * fragment provided will be executed as the body of an anonymous function.
@@ -345,7 +405,10 @@ interface WebDriver: Closeable {
      * */
     @Throws(WebDriverException::class)
     suspend fun terminate()
-    /** Quits this driver, closing every associated window. */
+    /**
+     * Quits this driver, closing every associated window.
+     * */
+    @Deprecated("Inappropriate name", ReplaceWith("close()"))
     @Throws(Exception::class)
     fun quit()
     /** Wait until the tab is terminated and closed. */

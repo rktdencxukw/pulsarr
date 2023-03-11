@@ -15,12 +15,10 @@ import ai.platon.pulsar.crawl.fetch.privacy.BrowserId
 import ai.platon.pulsar.crawl.fetch.privacy.PrivacyContext
 import ai.platon.pulsar.crawl.fetch.privacy.PrivacyContextId
 import ai.platon.pulsar.protocol.browser.driver.WebDriverPoolManager
+import com.google.common.annotations.Beta
 import org.slf4j.LoggerFactory
 
-/**
- * The privacy context, the context is closed if privacy is leaked
- * */
-open class BrowserPrivacyContext(
+open class BrowserPrivacyContext constructor(
     val proxyPoolManager: ProxyPoolManager? = null,
     val driverPoolManager: WebDriverPoolManager,
     val coreMetrics: CoreMetrics? = null,
@@ -28,22 +26,59 @@ open class BrowserPrivacyContext(
     id: PrivacyContextId
 ): PrivacyContext(id, conf) {
     private val logger = LoggerFactory.getLogger(BrowserPrivacyContext::class.java)
-    var proxyEntry: ProxyEntry? = null
+    private var proxyEntry: ProxyEntry? = null
     private val browserId = BrowserId(id.contextDir, id.fingerprint)
     private val driverContext = WebDriverContext(browserId, driverPoolManager, conf)
     private var proxyContext: ProxyContext? = null
+    /**
+     * The privacy context is retired but not closed yet.
+     * */
+    override val isRetired: Boolean get() {
+        return proxyContext?.isRetired == true
+    }
+    /**
+     * A ready privacy context has to meet the following requirements:
+     *
+     * 1. not closed
+     * 2. not leaked
+     * 3. not idle
+     * 4. if there is a proxy, the proxy has to be ready
+     * 5. the associated driver pool promises to provide an available driver, ether one of the following:
+     *    1. it has slots to create new drivers
+     *    2. it has standby drivers
+     *
+     * Note: this flag does not guarantee consistency, and can change immediately after it's read
+     * */
+    override val isReady: Boolean get() {
+        // NOTICE:
+        // too complex state checking, which is very easy to lead to bugs
+        val isProxyContextReady = proxyContext == null || proxyContext?.isReady == true
+        val isDriverContextReady = driverContext.isReady
+        return isProxyContextReady && isDriverContextReady && super.isReady
+    }
 
-    @Throws(NoProxyException::class, ProxyVendorUntrustedException::class)
-    override suspend fun doRun(task: FetchTask, browseFun: suspend (FetchTask, WebDriver) -> FetchResult): FetchResult {
+    override val isFullCapacity: Boolean get() = driverPoolManager.isFullCapacity(browserId)
+
+    @Throws(ProxyException::class)
+    override suspend fun doRun(task: FetchTask, fetchFun: suspend (FetchTask, WebDriver) -> FetchResult): FetchResult {
         initialize(task)
 
         return checkAbnormalResult(task) ?:
-            proxyContext?.run(task, browseFun) ?:
-            driverContext.run(task, browseFun)
+            proxyContext?.run(task, fetchFun) ?:
+            driverContext.run(task, fetchFun)
     }
 
+    override fun maintain() {
+        proxyContext?.maintain()
+        driverContext.maintain()
+    }
+
+    override fun promisedWebDriverCount() = driverPoolManager.promisedDriverCount(browserId)
+
+    @Beta
+    override fun subscribeWebDriver() = driverPoolManager.subscribeDriver(browserId)
+
     override fun report() {
-        val isIdle = proxyContext?.proxyEntry?.isIdle == true
         logger.info("Privacy context #{}{}{} has lived for {}" +
                 " | success: {}({} pages/s) | small: {}({}) | traffic: {}({}/s) | tasks: {} total run: {} | {}",
                 display, if (isIdle) "(idle)" else "", if (isLeaked) "(leaked)" else "", elapsedTime.readable(),
@@ -52,7 +87,7 @@ open class BrowserPrivacyContext(
                 Strings.compactFormat(coreMetrics?.totalNetworkIFsRecvBytes?:0),
                 Strings.compactFormat(coreMetrics?.networkIFsRecvBytesPerSecond?:0),
                 meterTasks.count, meterFinishes.count,
-                proxyContext?.proxyEntry
+                proxyContext?.proxyEntry?.toString()
         )
 
         if (smallPageRate > 0.5) {
@@ -68,9 +103,15 @@ open class BrowserPrivacyContext(
     }
 
     /**
-     * Block until all the drivers are closed and the proxy is offline
+     * Closing call stack:
+     *
+     * PrivacyContextManager.close -> PrivacyContext.close -> WebDriverContext.close -> WebDriverPoolManager.close
+     * -> BrowserManager.close -> Browser.close -> WebDriver.close
+     * |-> LoadingWebDriverPool.close
+     *
      * */
     override fun close() {
+        logger.debug("Closing browser privacy context ...")
         if (closed.compareAndSet(false, true)) {
             try {
                 report()
@@ -84,7 +125,7 @@ open class BrowserPrivacyContext(
 
     private fun checkAbnormalResult(task: FetchTask): FetchResult? {
         return when {
-            !isActive -> FetchResult.canceled(task)
+            !isActive -> FetchResult.canceled(task, "PRIVACY CX INACTIVE")
             else -> null
         }
     }

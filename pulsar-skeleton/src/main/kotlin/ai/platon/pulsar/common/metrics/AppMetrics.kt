@@ -5,19 +5,14 @@ import ai.platon.pulsar.common.chrono.scheduleAtFixedRate
 import ai.platon.pulsar.common.config.AppConstants
 import ai.platon.pulsar.common.config.CapabilityTypes
 import ai.platon.pulsar.common.config.ImmutableConfig
-import ai.platon.pulsar.common.measure.ByteUnit
-import ai.platon.pulsar.common.measure.ByteUnitConverter
 import com.codahale.metrics.*
 import com.codahale.metrics.graphite.GraphiteReporter
 import com.codahale.metrics.graphite.PickledGraphite
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.LoggerFactory
-import oshi.SystemInfo
 import java.net.InetSocketAddress
-import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.Executors
@@ -84,35 +79,12 @@ class AppMetrics(
         val defaultMetricRegistry = SharedMetricRegistries.getDefault() as AppMetricRegistry
         val reg = defaultMetricRegistry
 
-        val startTime = Instant.now()
-        val elapsedTime get() = Duration.between(startTime, Instant.now())
-        val systemInfo = SystemInfo()
-        // OSHI cached the value, so it's fast and safe to be called frequently
-        val memoryInfo get() = systemInfo.hardware.memory
-        /**
-         * Free memory in bytes
-         * Free memory is the amount of memory which is currently not used for anything.
-         * This number should be small, because memory which is not used is simply wasted.
-         * */
-        val freeMemory get() = Runtime.getRuntime().freeMemory()
-        val freeMemoryGiB get() = ByteUnit.BYTE.toGiB(freeMemory.toDouble())
-        /**
-         * Available memory in bytes
-         * Available memory is the amount of memory which is available for allocation to a new process or to existing
-         * processes.
-         * */
-        val availableMemory get() = memoryInfo.available
-
-        val freeSpace get() = FileSystems.getDefault().fileStores
-            .filter { ByteUnitConverter.convert(it.totalSpace, "G") > 20 }
-            .map { it.unallocatedSpace }
-
         init {
             mapOf(
-                "startTime" to Gauge { startTime },
-                "elapsedTime" to Gauge { elapsedTime },
-                "availableMemory" to Gauge { Strings.compactFormat(availableMemory) },
-                "freeSpace" to Gauge { freeSpace.map { Strings.compactFormat(it) } }
+                "startTime" to Gauge { AppSystemInfo.startTime },
+                "elapsedTime" to Gauge { AppSystemInfo.elapsedTime },
+                "availableMemory" to Gauge { Strings.compactFormat(AppSystemInfo.availableMemory) },
+                "freeSpace" to Gauge { AppSystemInfo.freeDiskSpaces.map { Strings.compactFormat(it) } }
             ).let { reg.registerAll(this, it) }
         }
     }

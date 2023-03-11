@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
-class ProxyContext(
+open class ProxyContext(
     var proxyEntry: ProxyEntry? = null,
     private val proxyPoolManager: ProxyPoolManager,
     private val driverContext: WebDriverContext,
@@ -87,7 +87,21 @@ class ProxyContext(
     private val closed = AtomicBoolean()
 
     val isEnabled get() = proxyPoolManager.isEnabled
+    val isRetired: Boolean get() {
+        val p = proxyEntry
+        if (p != null) {
+            if (p.isExpired) {
+                p.retire()
+            }
+            return p.isRetired
+        }
+        return false
+    }
     val isActive get() = proxyPoolManager.isActive && !closing.get() && !closed.get()
+    val isReady: Boolean get() {
+        val isProxyReady = proxyEntry == null || proxyEntry?.isReady == true
+        return isProxyReady && !isRetired && isActive
+    }
 
     init {
         maxAllowedProxyAbsence = conf.getInt(CapabilityTypes.PROXY_MAX_ALLOWED_PROXY_ABSENCE, 10)
@@ -95,6 +109,14 @@ class ProxyContext(
 
     suspend fun run(task: FetchTask, browseFun: suspend (FetchTask, WebDriver) -> FetchResult): FetchResult {
         return checkAbnormalResult(task) ?:run0(task, browseFun)
+    }
+
+    open fun maintain() {
+        val p = proxyEntry
+        if (p != null && p.isExpired) {
+            p.retire()
+        }
+        // nothing to do currently
     }
 
     @Throws(ProxyException::class)
@@ -118,7 +140,7 @@ class ProxyContext(
 
     private fun checkAbnormalResult(task: FetchTask): FetchResult? {
         if (!isActive) {
-            return FetchResult.canceled(task)
+            return FetchResult.canceled(task, "PROXY CX INACTIVE")
         }
 
         checkProxyAbsence()
@@ -133,17 +155,17 @@ class ProxyContext(
             }
             is ProxyRetiredException -> {
                 logger.warn("{}, context reset will be triggered | {}", e.message, task.proxyEntry?:"<no proxy>")
-                FetchResult.privacyRetry(task, reason = e)
+                FetchResult.privacyRetry(task, e)
             }
             is NoProxyException -> {
                 numProxyAbsence.incrementAndGet()
                 checkProxyAbsence()
                 logger.warn("No proxy available temporary the {}th times, cause: {}", numProxyAbsence, e.message)
-                FetchResult.crawlRetry(task)
+                FetchResult.crawlRetry(task, "No proxy")
             }
             else -> {
                 logger.warn("Task failed with proxy {}, cause: {}", proxyEntry, e.message)
-                FetchResult.privacyRetry(task)
+                FetchResult.privacyRetry(task, e)
             }
         }
     }

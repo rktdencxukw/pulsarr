@@ -1,14 +1,18 @@
 package ai.platon.pulsar.protocol.browser.emulator.impl
 
 import ai.platon.pulsar.browser.common.BrowserSettings
-import ai.platon.pulsar.common.*
+import ai.platon.pulsar.common.FlowState
+import ai.platon.pulsar.common.brief
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.metrics.AppMetrics
 import ai.platon.pulsar.common.persist.ext.browseEvent
 import ai.platon.pulsar.common.persist.ext.options
 import ai.platon.pulsar.crawl.fetch.FetchResult
 import ai.platon.pulsar.crawl.fetch.FetchTask
-import ai.platon.pulsar.crawl.fetch.driver.*
+import ai.platon.pulsar.crawl.fetch.driver.NavigateEntry
+import ai.platon.pulsar.crawl.fetch.driver.WebDriver
+import ai.platon.pulsar.crawl.fetch.driver.WebDriverCancellationException
+import ai.platon.pulsar.crawl.fetch.driver.WebDriverException
 import ai.platon.pulsar.crawl.protocol.ForwardingResponse
 import ai.platon.pulsar.crawl.protocol.Response
 import ai.platon.pulsar.crawl.protocol.http.ProtocolStatusTranslator
@@ -25,7 +29,7 @@ import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-import java.util.concurrent.ThreadLocalRandom
+import kotlin.random.Random
 
 /**
  * Created by vincent on 18-1-1.
@@ -34,10 +38,9 @@ import java.util.concurrent.ThreadLocalRandom
 open class InteractiveBrowserEmulator(
     val driverPoolManager: WebDriverPoolManager,
     responseHandler: BrowserResponseHandler,
-    immutableConfig: ImmutableConfig
-): BrowserEmulator,
-    BrowserEmulatorImplBase(driverPoolManager.driverSettings, responseHandler, immutableConfig)
-{
+    immutableConfig: ImmutableConfig,
+) : BrowserEmulator,
+    BrowserEmulatorImplBase(driverPoolManager.driverSettings, responseHandler, immutableConfig) {
     private val logger = LoggerFactory.getLogger(BrowserEmulator::class.java)!!
     private val tracer get() = logger.takeIf { it.isTraceEnabled }
     private val taskLogger = LoggerFactory.getLogger(BrowserEmulator::class.java.name + ".Task")!!
@@ -53,8 +56,12 @@ open class InteractiveBrowserEmulator(
      * @param task The task to fetch
      * @return The result of this fetch
      * */
-    override suspend fun fetch(task: FetchTask, driver: WebDriver): FetchResult {
-        return takeIf { isActive }?.browseWithDriver(task, driver) ?: FetchResult.canceled(task)
+    @Deprecated("Inappropriate name", replaceWith = ReplaceWith("visit(task, driver)"))
+    override suspend fun fetch(task: FetchTask, driver: WebDriver) = visit(task, driver)
+
+    override suspend fun visit(task: FetchTask, driver: WebDriver): FetchResult {
+        return takeIf { isActive }?.browseWithDriver(task, driver) ?:
+        FetchResult.canceled(task, "Inactive interactive browser emulator")
     }
 
     override fun cancelNow(task: FetchTask) {
@@ -69,12 +76,15 @@ open class InteractiveBrowserEmulator(
         driverPoolManager.cancel(task.url)
     }
 
+    /**
+     * Attach event handlers
+     * */
     private fun attach() {
         on1(EmulateEvents.willNavigate) { page: WebPage, driver: WebDriver ->
             this.onWillNavigate(page, driver)
         }
-        on1(EmulateEvents.navigated) { page: WebPage, driver: WebDriver ->
-            this.onNavigated(page, driver)
+        on1(EmulateEvents.willInteract) { page: WebPage, driver: WebDriver ->
+            this.onWillInteract(page, driver)
         }
         on1(EmulateEvents.willCheckDocumentState) { page: WebPage, driver: WebDriver ->
             this.onWillCheckDocumentState(page, driver)
@@ -82,11 +92,23 @@ open class InteractiveBrowserEmulator(
         on1(EmulateEvents.documentActuallyReady) { page: WebPage, driver: WebDriver ->
             this.onDocumentActuallyReady(page, driver)
         }
+        on1(EmulateEvents.willScroll) { page: WebPage, driver: WebDriver ->
+            this.onWillScroll(page, driver)
+        }
+        on1(EmulateEvents.didScroll) { page: WebPage, driver: WebDriver ->
+            this.onDidScroll(page, driver)
+        }
         on1(EmulateEvents.willComputeFeature) { page: WebPage, driver: WebDriver ->
             this.onWillComputeFeature(page, driver)
         }
         on1(EmulateEvents.featureComputed) { page: WebPage, driver: WebDriver ->
             this.onFeatureComputed(page, driver)
+        }
+        on1(EmulateEvents.didInteract) { page: WebPage, driver: WebDriver ->
+            this.onDidInteract(page, driver)
+        }
+        on1(EmulateEvents.navigated) { page: WebPage, driver: WebDriver ->
+            this.onNavigated(page, driver)
         }
         on1(EmulateEvents.willStopTab) { page: WebPage, driver: WebDriver ->
             this.onWillStopTab(page, driver)
@@ -108,6 +130,10 @@ open class InteractiveBrowserEmulator(
         page.browseEvent?.onNavigated?.invoke(page, driver)
     }
 
+    override suspend fun onWillInteract(page: WebPage, driver: WebDriver) {
+        page.browseEvent?.onWillNavigate?.invoke(page, driver)
+    }
+
     override suspend fun onWillCheckDocumentState(page: WebPage, driver: WebDriver) {
         page.browseEvent?.onWillCheckDocumentState?.invoke(page, driver)
     }
@@ -116,12 +142,24 @@ open class InteractiveBrowserEmulator(
         page.browseEvent?.onDocumentActuallyReady?.invoke(page, driver)
     }
 
+    override suspend fun onWillScroll(page: WebPage, driver: WebDriver) {
+        page.browseEvent?.onWillScroll?.invoke(page, driver)
+    }
+
+    override suspend fun onDidScroll(page: WebPage, driver: WebDriver) {
+        page.browseEvent?.onDidScroll?.invoke(page, driver)
+    }
+
     override suspend fun onWillComputeFeature(page: WebPage, driver: WebDriver) {
         page.browseEvent?.onWillComputeFeature?.invoke(page, driver)
     }
 
     override suspend fun onFeatureComputed(page: WebPage, driver: WebDriver) {
         page.browseEvent?.onFeatureComputed?.invoke(page, driver)
+    }
+
+    override suspend fun onDidInteract(page: WebPage, driver: WebDriver) {
+        page.browseEvent?.onDidInteract?.invoke(page, driver)
     }
 
     override suspend fun onWillStopTab(page: WebPage, driver: WebDriver) {
@@ -145,19 +183,20 @@ open class InteractiveBrowserEmulator(
 
         if (task.page.options.isDead()) {
             taskLogger.info("Page is dead, cancel the task | {}", task.page.configuredUrl)
-            return FetchResult.canceled(task)
+            return FetchResult.canceled(task, "Page deadline exceed")
         }
 
         var exception: Exception? = null
         var response: Response?
+        val navigateTask = NavigateTask(task, driver, driverSettings)
 
         try {
             checkState(task, driver)
 
             response = if (task.page.isResource) {
-                loadResourceWithoutRendering(task, driver)
-            } else browseWithCancellationHandled(task, driver)
-        }  catch (e: NavigateTaskCancellationException) {
+                loadResourceWithoutRendering(navigateTask, driver)
+            } else browseWithCancellationHandled(navigateTask, driver)
+        } catch (e: NavigateTaskCancellationException) {
             // The task is canceled
             response = ForwardingResponse.canceled(task.page)
         } catch (e: WebDriverCancellationException) {
@@ -167,7 +206,7 @@ open class InteractiveBrowserEmulator(
             logger.warn("Web driver session #{} is lost | {}", e.driver?.id, e.brief())
             driver.retire()
             exception = e
-            response = ForwardingResponse.privacyRetry(task.page)
+            response = ForwardingResponse.privacyRetry(task.page, "Browser session lost")
         } catch (e: WebDriverException) {
             if (e.cause is org.apache.http.conn.HttpHostConnectException) {
                 logger.warn("Web driver is disconnected - {}", e.brief())
@@ -177,7 +216,7 @@ open class InteractiveBrowserEmulator(
 
             driver.retire()
             exception = e
-            response = ForwardingResponse.crawlRetry(task.page)
+            response = ForwardingResponse.crawlRetry(task.page, e)
         } catch (e: TimeoutCancellationException) {
             logger.warn("[Timeout] Coroutine was cancelled, thrown by [withTimeout] | {}", e.brief())
             response = ForwardingResponse.crawlRetry(task.page, e)
@@ -186,6 +225,7 @@ open class InteractiveBrowserEmulator(
                 e.javaClass.name == "kotlinx.coroutines.JobCancellationException" -> {
                     logger.warn("Coroutine was cancelled | {}", e.message)
                 }
+
                 else -> {
                     logger.warn("[Unexpected]", e)
                 }
@@ -198,13 +238,11 @@ open class InteractiveBrowserEmulator(
     }
 
     @Throws(NavigateTaskCancellationException::class, WebDriverCancellationException::class)
-    private suspend fun loadResourceWithoutRendering(task: FetchTask, driver: WebDriver): Response {
-        checkState(task, driver)
+    private suspend fun loadResourceWithoutRendering(navigateTask: NavigateTask, driver: WebDriver): Response {
+        checkState(navigateTask.fetchTask, driver)
 
-        val navigateTask = NavigateTask(task, driver, driverSettings)
-
-        val response = driver.loadResource(task.url)
-            ?: return ForwardingResponse.failed(task.page, SessionLostException("null response"))
+        val response = driver.loadResource(navigateTask.url)
+            ?: return ForwardingResponse.failed(navigateTask.page, SessionLostException("null response"))
 
         // TODO: transform in AbstractHttpProtocol
         val protocolStatus = ProtocolStatusTranslator.translateHttpCode(response.statusCode())
@@ -214,6 +252,7 @@ open class InteractiveBrowserEmulator(
             it.headers.putAll(response.headers())
             it.contentType = response.contentType()
             it.content = navigateTask.pageSource.toByteArray(StandardCharsets.UTF_8)
+            it.originalContentLength = it.content?.size ?: 0
         }
 
         responseHandler.emit(BrowserResponseEvents.willCreateResponse)
@@ -222,14 +261,14 @@ open class InteractiveBrowserEmulator(
         }
     }
 
-    private suspend fun browseWithCancellationHandled(task: FetchTask, driver: WebDriver): Response? {
-        checkState(task, driver)
+    private suspend fun browseWithCancellationHandled(navigateTask: NavigateTask, driver: WebDriver): Response? {
+        checkState(navigateTask.fetchTask, driver)
 
         var response: Response?
-        val page = task.page
+        val page = navigateTask.page
 
         try {
-            response = browseWithWebDriver(task, driver)
+            response = browseWithWebDriver(navigateTask, driver)
 
             // Do something like a human being
 //            interactAfterFetch(task, driver)
@@ -249,8 +288,10 @@ open class InteractiveBrowserEmulator(
             emit1(EmulateEvents.tabStopped, page, driver)
 //            notify("onTabStopped") { event?.onTabStopped?.invoke(page, driver) }
         } catch (e: NavigateTaskCancellationException) {
-            logger.info("{}. Try canceled task {}/{} again later (privacy scope suggested)",
-                page.id, task.id, task.batchId)
+            logger.info(
+                "{}. Try canceled task {}/{} again later (privacy scope suggested)",
+                page.id, navigateTask.fetchTask.id, navigateTask.fetchTask.batchId
+            )
             response = ForwardingResponse.canceled(page)
         }
 
@@ -258,12 +299,11 @@ open class InteractiveBrowserEmulator(
     }
 
     @Throws(NavigateTaskCancellationException::class, WebDriverCancellationException::class)
-    private suspend fun browseWithWebDriver(task: FetchTask, driver: WebDriver): Response {
-        checkState(task, driver)
+    private suspend fun browseWithWebDriver(navigateTask: NavigateTask, driver: WebDriver): Response {
+        val fetchTask = navigateTask.fetchTask
+        checkState(navigateTask.fetchTask, driver)
 
-        val navigateTask = NavigateTask(task, driver, driverSettings)
-
-        val interactResult = navigateAndInteract(task, driver, navigateTask.driverSettings)
+        val interactResult = navigateAndInteract(navigateTask, driver, navigateTask.driverSettings)
         navigateTask.pageDatum.apply {
             protocolStatus = interactResult.protocolStatus
             activeDOMStatTrace = interactResult.activeDOMMessage?.trace
@@ -271,19 +311,24 @@ open class InteractiveBrowserEmulator(
         }
         navigateTask.pageSource = driver.pageSource() ?: ""
 
-        responseHandler.onWillCreateResponse(task, driver)
+        responseHandler.onWillCreateResponse(fetchTask, driver)
         return createResponse(navigateTask).also {
-            responseHandler.onResponseCreated(task, driver, it)
+            responseHandler.onResponseCreated(fetchTask, driver, it)
         }
     }
 
     @Throws(NavigateTaskCancellationException::class, WebDriverException::class)
-    private suspend fun navigateAndInteract(task: FetchTask, driver: WebDriver, settings: BrowserSettings): InteractResult {
-        checkState(task, driver)
+    private suspend fun navigateAndInteract(
+        task: NavigateTask,
+        driver: WebDriver,
+        settings: BrowserSettings,
+    ): InteractResult {
+        val fetchTask = task.fetchTask
+        checkState(fetchTask, driver)
 
         val page = task.page
 
-        logBeforeNavigate(task, settings)
+        logBeforeNavigate(fetchTask, settings)
         driver.setTimeouts(settings)
         // TODO: handle frames
         // driver.switchTo().frame(1);
@@ -293,7 +338,7 @@ open class InteractiveBrowserEmulator(
 
         tracer?.trace("{}. Navigating | {}", page.id, task.url)
 
-        checkState(task, driver)
+        checkState(fetchTask, driver)
 
 //        listeners.notify(EventType.willNavigate, page, driver)
 //        val event = page.browseEvent
@@ -301,12 +346,12 @@ open class InteractiveBrowserEmulator(
 
         // href has the higher priority to locate a resource
         require(task.url == page.url)
-        val finalUrl = task.href ?: task.url
+        val finalUrl = fetchTask.href ?: fetchTask.url
         val navigateEntry = NavigateEntry(finalUrl, page.id, task.url, pageReferrer = page.referrer)
 
         emit1(EmulateEvents.willNavigate, page, driver)
 
-        checkState(task, driver)
+        checkState(fetchTask, driver)
         try {
             driver.navigateTo(navigateEntry)
         } finally {
@@ -319,17 +364,20 @@ open class InteractiveBrowserEmulator(
         }
 
         val interactTask = InteractTask(task, settings, driver)
-        return if (settings.isStartupScriptEnabled) {
-            emit1(EmulateEvents.willInteract, page, driver)
-//            notify("onWillInteract") { event?.onWillInteract?.invoke(page, driver) }
 
-            interact(interactTask).also {
-                emit1(EmulateEvents.didInteract, page, driver)
-//                notify("onDidInteract") { event?.onDidInteract?.invoke(page, driver) }
+        val result = try {
+            emit1(EmulateEvents.willInteract, page, driver)
+
+            if (settings.isStartupScriptEnabled) {
+                interact(interactTask)
+            } else {
+                interactNoJsInvaded(interactTask)
             }
-        } else {
-            interactNoJsInvaded(interactTask)
+        } finally {
+            emit1(EmulateEvents.didInteract, page, driver)
         }
+
+        return result
     }
 
     protected open suspend fun interactNoJsInvaded(interactTask: InteractTask): InteractResult {
@@ -347,10 +395,11 @@ open class InteractiveBrowserEmulator(
 
     @Throws(NavigateTaskCancellationException::class, WebDriverCancellationException::class)
     protected open suspend fun interact(task: InteractTask): InteractResult {
-        checkState(task.fetchTask, task.driver)
+        val fetchTask = task.navigateTask.fetchTask
+        checkState(fetchTask, task.driver)
 
         val result = InteractResult(ProtocolStatus.STATUS_SUCCESS, null)
-        val page = task.fetchTask.page
+        val page = task.page
         val driver = task.driver
 
         tracer?.trace("{}", task.interactSettings)
@@ -365,15 +414,22 @@ open class InteractiveBrowserEmulator(
         }
 
         if (result.state.isContinue) {
-            scrollDown(task, result)
+            emit1(EmulateEvents.willScroll, page, driver)
+
+            scrollOnPage(task, result)
+
+            emit1(EmulateEvents.didScroll, page, driver)
         }
 
         if (result.state.isContinue) {
             emit1(EmulateEvents.willComputeFeature, page, driver)
 
+            task.navigateTask.originalContentLength = driver.pageSource()?.length ?: 0
             computeDocumentFeatures(task, result)
 
             emit1(EmulateEvents.featureComputed, page, driver)
+        } else {
+            task.navigateTask.originalContentLength = driver.pageSource()?.length ?: 0
         }
 
         return result
@@ -386,9 +442,10 @@ open class InteractiveBrowserEmulator(
     protected open suspend fun waitForDocumentActuallyReady(interactTask: InteractTask, result: InteractResult) {
         var status = ProtocolStatus.STATUS_SUCCESS
         val scriptTimeout = interactTask.interactSettings.scriptTimeout
-        val fetchTask = interactTask.fetchTask
+        val fetchTask = interactTask.navigateTask.fetchTask
+        val scrollCount = interactTask.interactSettings.scrollCount
 
-        val initialScroll = 5
+        val initialScroll = if (scrollCount > 0) 5 else 0
         val delayMillis = 500L * 2
 //        val maxRound = scriptTimeout.toMillis() / delayMillis
         val maxRound = 60
@@ -411,9 +468,11 @@ open class InteractiveBrowserEmulator(
         } finally {
             if (message == null) {
                 if (!fetchTask.isCanceled && !interactTask.driver.isQuit && isActive) {
-                    logger.warn("Timeout to wait for document ready after ${i.dec()} round, " +
-                            "retry is supposed | {}", interactTask.url)
-                    status = ProtocolStatus.retry(RetryScope.PRIVACY)
+                    logger.warn(
+                        "Timeout to wait for document ready after ${i.dec()} round, " +
+                                "retry is supposed | {}", interactTask.url
+                    )
+                    status = ProtocolStatus.retry(RetryScope.PRIVACY, "Timeout to wait for document ready")
                     result.state = FlowState.BREAK
                 }
             } else if (message == "timeout") {
@@ -426,7 +485,7 @@ open class InteractiveBrowserEmulator(
                 result.state = FlowState.BREAK
             } else {
                 if (tracer != null) {
-                    val page = interactTask.fetchTask.page
+                    val page = interactTask.page
                     val truncatedMessage = message.toString().substringBefore("urls")
                     tracer?.trace("{}. DOM is ready after {} evaluation | {}", page.id, i, truncatedMessage)
                 }
@@ -436,23 +495,47 @@ open class InteractiveBrowserEmulator(
         result.protocolStatus = status
     }
 
-    protected open suspend fun scrollDown(interactTask: InteractTask, result: InteractResult) {
-        val interactSettings = interactTask.interactSettings
-        val random = ThreadLocalRandom.current().nextInt(3)
-        val scrollDownCount = (interactSettings.scrollCount + random - 1).coerceAtLeast(1)
-        val scrollInterval = interactSettings.scrollInterval.toMillis()
+    /**
+     * Scroll on page
+     * */
+    open suspend fun scrollOnPage(interactTask: InteractTask, result: InteractResult) {
+        val expressions = buildScrollExpressions(interactTask)
 
-        val expressions = listOf(0.2, 0.3, 0.5, 0.75, 0.5, 0.4)
+        val interactSettings = interactTask.interactSettings
+        // some website show lazy content only when the page is in the front.
+        val bringToFront = interactTask.interactSettings.bringToFront
+        val scrollInterval = interactSettings.scrollInterval.toMillis()
+        evaluate(interactTask, expressions, scrollInterval, bringToFront = bringToFront)
+    }
+
+    /**
+     * Build scroll expressions
+     * TODO: use InteractSettings.buildScrollPositions
+     * */
+    private fun buildScrollExpressions(interactTask: InteractTask): List<String> {
+        val interactSettings = interactTask.interactSettings
+        val expressions = interactSettings.buildInitScrollPositions()
             .map { "__pulsar_utils__.scrollToMiddle($it)" }
             .toMutableList()
-        repeat(scrollDownCount) {
-            expressions.add("__pulsar_utils__.scrollDown()")
+
+        val scrollCount = interactSettings.scrollCount
+
+        if (scrollCount <= 0) {
+            return expressions
         }
-        evaluate(interactTask, expressions, scrollInterval)
+
+        val random = Random.nextInt(3)
+        val enhancedScrollCount = (scrollCount + random - 1).coerceAtLeast(1)
+        repeat(enhancedScrollCount) { i ->
+            val ratio = (0.6 + 0.1 * i).coerceAtMost(0.8)
+            expressions.add("__pulsar_utils__.scrollToMiddle($ratio)")
+        }
+
+        return expressions
     }
 
     protected open suspend fun waitForElement(
-        interactTask: InteractTask, requiredElements: List<String>
+        interactTask: InteractTask, requiredElements: List<String>,
     ) {
         if (requiredElements.isNotEmpty()) {
             return
@@ -478,7 +561,7 @@ open class InteractiveBrowserEmulator(
         if (message is String) {
             result.activeDOMMessage = ActiveDOMMessage.fromJson(message)
             if (taskLogger.isDebugEnabled) {
-                val page = interactTask.fetchTask.page
+                val page = interactTask.navigateTask.fetchTask.page
                 taskLogger.debug("{}. {} | {}", page.id, result.activeDOMMessage?.trace, interactTask.url)
             }
         }

@@ -5,7 +5,7 @@ bin=$(cd "$bin">/dev/null || exit; pwd)
 APP_HOME=$(cd "$bin"/..>/dev/null || exit; pwd)
 
 # Switching remote URLs from HTTPS to SSH
-git remote set-url origin git@github.com:platonai/pulsar.git
+git remote set-url origin git@github.com:platonai/pulsarr.git
 
 SNAPSHOT_VERSION=$(head -n 1 "$APP_HOME/VERSION")
 VERSION=${SNAPSHOT_VERSION//"-SNAPSHOT"/""}
@@ -107,6 +107,6 @@ function checkout_working_branch() {
 
 restore_working_branch
 pull
-add_tag
 merge_to_main_branch
 checkout_working_branch
+add_tag

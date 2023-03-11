@@ -74,7 +74,7 @@ abstract class AbstractPulsarContext(
     /**
      * Check if the context is active
      * */
-    val isActive get() = !closed.get() && AppContext.isActive && applicationContext.isActive
+    override val isActive get() = !closed.get() && AppContext.isActive && applicationContext.isActive
 
     /**
      * The context id
@@ -330,12 +330,12 @@ abstract class AbstractPulsarContext(
 
         val nonSyncSessions = sessions.values.toList().also { sessions.clear() }
         nonSyncSessions.parallelStream().forEach { session ->
-            session.runCatching { close() }.onFailure { logger.warn(it.brief("[Unexpected]")) }
+            runCatching { session.close() }.onFailure { logger.warn(it.brief("[Unexpected]")) }
         }
 
         val nonSyncObjects = closableObjects.toList().also { closableObjects.clear() }
         nonSyncObjects.parallelStream().forEach { closable ->
-            closable.runCatching { close() }.onFailure { logger.warn(it.brief("[Unexpected]")) }
+            runCatching { closable.close() }.onFailure { logger.warn(it.brief("[Unexpected]")) }
         }
     }
 

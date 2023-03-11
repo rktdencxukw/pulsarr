@@ -19,11 +19,11 @@ class WebDriverAdapter(
         get() = driver.idleTimeout
         set(value) { driver.idleTimeout = value }
 
-    override var waitForTimeout: Duration
-        get() = driver.waitForTimeout
-        set(value) { driver.waitForTimeout = value }
+    override var waitForElementTimeout: Duration
+        get() = driver.waitForElementTimeout
+        set(value) { driver.waitForElementTimeout = value }
 
-    override val status get() = driver.status
+    override val state get() = driver.state
 
     override var navigateEntry: NavigateEntry
         get() = driver.navigateEntry
@@ -43,12 +43,15 @@ class WebDriverAdapter(
     /**
      * The id of the session to the browser
      * */
+    @Deprecated("Not used any more")
     override val sessionId get() = driverOrNull?.sessionId
 
     @Throws(WebDriverException::class)
     override suspend fun addInitScript(script: String) = driverOrNull?.addInitScript(script) ?: Unit
 
     override suspend fun addBlockedURLs(urls: List<String>) = driverOrNull?.addBlockedURLs(urls) ?: Unit
+
+    override suspend fun addProbabilityBlockedURLs(urls: List<String>) = driverOrNull?.addProbabilityBlockedURLs(urls) ?: Unit
 
     @Throws(WebDriverException::class)
     override suspend fun navigateTo(entry: NavigateEntry) = driverOrNull?.navigateTo(entry) ?: Unit
@@ -84,6 +87,9 @@ class WebDriverAdapter(
     override suspend fun waitForNavigation(timeout: Duration) = driverOrNull?.waitForNavigation(timeout) ?: 0
 
     @Throws(WebDriverException::class)
+    override suspend fun waitForPage(url: String, timeout: Duration) = driverOrNull?.waitForPage(url, timeout)
+
+    @Throws(WebDriverException::class)
     override suspend fun exists(selector: String) = driverOrNull?.exists(selector) ?: false
 
     @Throws(WebDriverException::class)
@@ -95,6 +101,11 @@ class WebDriverAdapter(
     @Throws(WebDriverException::class)
     override suspend fun click(selector: String, count: Int) = driverOrNull?.click(selector, count) ?: Unit
 
+    override suspend fun clickTextMatches(selector: String, pattern: String, count: Int) {
+        driverOrNull?.clickTextMatches(selector, pattern, count)
+    }
+
+    @Deprecated("Inappropriate name", replaceWith = ReplaceWith("clickTextMatches(selector, pattern, count"))
     @Throws(WebDriverException::class)
     override suspend fun clickMatches(selector: String, pattern: String, count: Int) {
         driverOrNull?.clickMatches(selector, pattern, count)
@@ -119,6 +130,9 @@ class WebDriverAdapter(
     override suspend fun scrollTo(selector: String) = driverOrNull?.scrollTo(selector) ?: Unit
 
     @Throws(WebDriverException::class)
+    override suspend fun focus(selector: String) = driverOrNull?.focus(selector) ?: Unit
+
+    @Throws(WebDriverException::class)
     override suspend fun type(selector: String, text: String) = driverOrNull?.type(selector, text) ?: Unit
 
     @Throws(WebDriverException::class)
@@ -137,6 +151,11 @@ class WebDriverAdapter(
     }
 
     @Throws(WebDriverException::class)
+    override suspend fun moveMouseTo(selector: String, deltaX: Int, deltaY: Int) {
+        driverOrNull?.moveMouseTo(selector, deltaX, deltaY)
+    }
+
+    @Throws(WebDriverException::class)
     override suspend fun dragAndDrop(selector: String, deltaX: Int, deltaY: Int) {
         driverOrNull?.dragAndDrop(selector, deltaX, deltaY)
     }
@@ -149,6 +168,9 @@ class WebDriverAdapter(
 
     @Throws(WebDriverException::class)
     override suspend fun evaluate(expression: String) = driverOrNull?.evaluate(expression)
+
+    @Throws(WebDriverException::class)
+    override suspend fun evaluateDetail(expression: String) = driverOrNull?.evaluateDetail(expression)
 
     @Throws(WebDriverException::class)
     override suspend fun mainRequestHeaders() = driverOrNull?.mainRequestHeaders() ?: mapOf()

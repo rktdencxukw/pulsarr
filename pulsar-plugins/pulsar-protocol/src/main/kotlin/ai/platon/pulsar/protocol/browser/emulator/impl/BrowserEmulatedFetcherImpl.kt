@@ -17,8 +17,10 @@ import ai.platon.pulsar.crawl.protocol.Response
 import ai.platon.pulsar.persist.WebPage
 import ai.platon.pulsar.persist.gora.GoraWebPage
 import ai.platon.pulsar.protocol.browser.driver.WebDriverPoolManager
+import ai.platon.pulsar.protocol.browser.driver.WebDriverTask
 import ai.platon.pulsar.protocol.browser.emulator.BrowserEmulatedFetcher
 import ai.platon.pulsar.protocol.browser.emulator.BrowserEmulator
+import ai.platon.pulsar.protocol.browser.emulator.WebDriverPoolException
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
@@ -83,21 +85,30 @@ open class BrowserEmulatedFetcherImpl(
      * Fetch page content
      * */
     private suspend fun fetchTaskDeferred(task: FetchTask): Response {
+        // TODO: it's a temporary solution to specify the web driver to fetch the page
+        val driver = task.page.getVar("WEB_DRIVER") as? WebDriver
+        if (driver != null) {
+            return doFetch(task, driver).response
+        }
+
         return privacyManager.run(task) { _, driver -> doFetch(task, driver) }.response
     }
 
     private suspend fun doFetch(task: FetchTask, driver: WebDriver): FetchResult {
         if (!isActive) {
-            return FetchResult.canceled(task)
+            return FetchResult.canceled(task, "Inactive browser emulated fetcher")
         }
 
         emit(EventType.willFetch, task.page, driver)
-//        notify("onWillFetch") { event?.onWillFetch?.invoke(task.page, driver) }
 
-        val result = browserEmulator.fetch(task, driver)
+        val result = try {
+            browserEmulator.visit(task, driver)
+        } catch (e: Throwable) {
+            logger.warn(e.stringify("[Unexpected] Failed to visit page | ${task.url}\n"))
+            FetchResult.failed(task, e)
+        }
 
         emit(EventType.fetched, task.page, driver)
-//        notify("onFetched") { event?.onFetched?.invoke(task.page, driver) }
 
         return result
     }

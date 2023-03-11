@@ -12,6 +12,12 @@ public interface CapabilityTypes {
     /**
      * Common Parameters
      */
+
+    String APP_ID_KEY = "app.ident";
+    String APP_NAME_KEY = "app.name";
+
+    String APP_TMP_DIR_KEY = "app.tmp.dir";
+
     String LEGACY_CONFIG_PROFILE = "legacy.config.profile";
 
     String SYSTEM_PROPERTY_SPECIFIED_RESOURCES = "system.property.specified.resources";
@@ -183,6 +189,7 @@ public interface CapabilityTypes {
 
     String FETCH_PENDING_TIMEOUT = "fetch.pending.timeout";
 
+
     String FETCH_MAX_HOST_FAILURES = "fetch.max.host.failures";
 
     String FETCH_QUEUE_MODE = "fetch.queue.mode";
@@ -222,6 +229,7 @@ public interface CapabilityTypes {
     /**
      * Browser
      * */
+    String FETCH_INTERACT_SETTINGS = "interact.settings";
     String FETCH_PAGE_LOAD_TIMEOUT = "fetch.page.load.timeout";
     String FETCH_SCRIPT_TIMEOUT = "fetch.script.timeout";
     String FETCH_SCROLL_DOWN_COUNT = "fetch.scroll.down.count";
@@ -230,14 +238,22 @@ public interface CapabilityTypes {
     String FETCH_CLIENT_JS_COMPUTED_STYLES = "fetch.browser.client.js.computed.styles";
     String FETCH_CLIENT_JS_PROPERTY_NAMES = "fetch.browser.client.js.property.names";
     /**
-     * Privacy control
+     * Privacy context
      */
     String PRIVACY_CONTEXT_NUMBER = "privacy.context.number";
     /** The class name of privacy context id generator */
     String PRIVACY_CONTEXT_ID_GENERATOR_CLASS = "privacy.context.id.generator.class";
     String PRIVACY_MINOR_WARNING_FACTOR = "privacy.minor.warning.factor";
+
+    String PRIVACY_CONTEXT_IDLE_TIMEOUT = "privacy.idle.timeout";
+
+    String PRIVACY_CONTEXT_FAILURE_RATE_THRESHOLD = "privacy.failure.rate.threshold";
     String PRIVACY_MAX_WARNINGS = "privacy.max.warnings";
     String PRIVACY_CONTEXT_MIN_THROUGHPUT = "privacy.context.min.throughput";
+    /**
+     * The strategy to close privacy context: asap, lazy
+     * */
+    String PRIVACY_CONTEXT_CLOSE_LAZY = "privacy.close.strategy";
     /**
      * The max value of tabs a browser can open
      */
@@ -272,10 +288,21 @@ public interface CapabilityTypes {
     @Deprecated
     String BROWSER_EMULATOR_EVENT_HANDLER = "browser.emulate.event.handler";
     String BROWSER_RESPONSE_HANDLER = "browser.response.handler";
+    /**
+     * @deprecated  use BROWSER_URL_BLOCK_PROBABILITY instead
+     * */
     String BROWSER_ENABLE_URL_BLOCKING = "browser.enable.url.blocking";
+    /**
+     * The probability to block urls specified by {@code WebDriver.addBlockedURLs}, between [0, 1]
+     * */
+    String BROWSER_RESOURCE_BLOCK_PROBABILITY = "browser.url.block.probability";
     String BROWSER_ENABLE_UA_OVERRIDING = "browser.enable.ua.overriding";
     String BROWSER_SPA_MODE = "browser.spa.mode";
     String BROWSER_CHROME_PATH = "browser.chrome.path";
+    /**
+     * Whether reuse the recovered drivers to serve new tasks.
+     * */
+    String BROWSER_REUSE_RECOVERED_DRIVERS = "browser.reuse.recovered.drivers";
     /**
      * @deprecated Use event handlers instead
      * */

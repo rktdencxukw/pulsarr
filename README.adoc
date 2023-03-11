@@ -15,7 +15,7 @@ PulsarR [ˈpʌlsɑr] is short for Pulsar Radiation. If there is no confusion wit
 
 Extracting Web data at scale is extremely hard. #Websites change frequently and are becoming more complex, meaning web data collected is often inaccurate or incomplete#, PulsarR has developed a range of cutting-edge technologies to solve this problem.
 
-We have released complete solutions for site-wide Web scraping of some of the largest e-commerce websites. These solutions meet the highest standards of performance, quality and cost. They will be free and open source forever, such as:
+We have released complete solutions for site-wide Web scraping for some of the largest e-commerce websites. These solutions meet the highest standards of performance, quality and cost. They will be free and open source forever, such as:
 
 * link:https://github.com/platonai/exotic-amazon[Exotic Amazon]
 * link:https://github.com/platonai/exotic/tree/main/exotic-app/exotic-OCR-examples/src/main/kotlin/ai/platon/exotic/examples/sites/walmart[Exotic Walmart]
@@ -46,7 +46,7 @@ We have released complete solutions for site-wide Web scraping of some of the la
 * Large scale: fully distributed, designed for large scale crawling
 * Big data: various backend storage support: Local File/MongoDB/HBase/Gora
 * Logs &amp; metrics: monitored closely and every event is recorded
-* [Coming Soon] Information Extraction: Automatically learns web data patterns and automatically extracts every field in a webpage with remarkable precision
+* [Preview] Information Extraction: Learns Web data patterns and automatically extracts every field in a webpage with remarkable precision
 
 == Get started
 
@@ -81,12 +81,14 @@ fun main() {
 }
 ----
 
-Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/ContinuousCrawler.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/ContinuousCrawler.java[java].
+Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_5_ContinuousCrawler.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/ContinuousCrawler.java[java].
 
 *The #most complicated# crawl challenges can start with RPA:*
 
 *Kotlin:*
-```kotlin
+
+[source,kotlin]
+----
 val options = session.options(args)
 val event = options.event.browseEvent
 event.onBrowserLaunched.addLast { page, driver ->
@@ -108,7 +110,7 @@ event.onWillCheckDocumentState.addLast { page, driver ->
 }
 // visit the URL and trigger events
 session.load(url, options)
-```
+----
 
 Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/sites/food/dianping/RestaurantCrawler.kt[kotlin].
 
@@ -138,7 +140,7 @@ We have released a standalone executable jar based on PulsarR, which includes:
 * An applet based on `self-supervised` machine learning for information extraction, AI identifies all fields on the detail page with over 90% field accuracy of 99.9% or more
 * An applet based on `self-supervised` machine learning and outputs all extract rules, which can help traditional Web scraping methods
 * An applet that scrape Web data directly from the command line, like wget or curl, without writing code
-* A PulsarR server to which we can send SQLs to collect Web data
+* An upgraded Pulsar server to which we can send SQLs to collect Web data
 * A Web UI from which we can write SQLs and send them to the server
 
 Download https://github.com/platonai/exotic#download[Exotic] and explore its capabilities with a single command line:
@@ -154,14 +156,14 @@ Maven:
 <dependency>
   <groupId>ai.platon.pulsar</groupId>
   <artifactId>pulsar-all</artifactId>
-  <version>1.10.4</version>
+  <version>1.10.11</version>
 </dependency>
 ----
 
 Gradle:
 [source,kotlin]
 ----
-implementation("ai.platon.pulsar:pulsar-all:1.10.4")
+implementation("ai.platon.pulsar:pulsar-all:1.10.11")
 ----
 
 You can also clone the template project from github.com: https://github.com/platonai/pulsar-kotlin-template[kotlin], https://github.com/platonai/pulsar-java-template[java-11], https://github.com/platonai/pulsar-java-17-template[java-17].
@@ -172,33 +174,60 @@ You can also clone the template project from github.com: https://github.com/plat
 
 [source,kotlin]
 ----
-// create a pulsar session
+// Create a pulsar session
 val session = PulsarContexts.createSession()
-// the main url we are playing with
-val url = "https://list.jd.com/list.html?cat=652,12345,12349"
-// load a page, fetch it from the Web if it expires
-val page = session.load(url, "-expires 1d")
-// parse the page content into a Jsoup document
+// The main url we are playing with
+val url = "https://www.amazon.com/dp/B09V3KXJPB"
+
+// Load a page from local storage, or fetch it from the Internet if it does not exist or has expired
+val page = session.load(url, "-expires 10s")
+
+// Submit a url to the URL pool, the submitted url will be processed in a crawl loop
+session.submit(url, "-expires 10s")
+
+// Parse the page content into a document
 val document = session.parse(page)
 // do something with the document
 // ...
 
-// or, load and parse
-val document2 = session.loadDocument(url, "-expires 1d")
+// Load and parse
+val document2 = session.loadDocument(url, "-expires 10s")
 // do something with the document
 // ...
 
-// load all pages with links specified by -outLink
-val pages = session.loadOutPages(url, "-expires 1d -itemExpires 7d -outLink a[href~=item]")
-// load, parse and scrape fields
-val fields = session.scrape(url, "-expires 1d", "li[data-sku]", listOf(".p-name em", ".p-price"))
-// load, parse and scrape named fields
-val fields2 = session.scrape(url, "-i 1d", "li[data-sku]", mapOf("name" to ".p-name em", "price" to ".p-price"))
-// load, parse and scrape named fields from a set of out pages
-val fields3 = session.scrapeOutPages(url, "-i 10s -ii 10s", "li[data-sku]", mapOf("name" to ".sku-name", "price" to ".p-price"))
+// Load the portal page and then load all links specified by `-outLink`.
+// Option `-outLink` specifies the cssSelector to select links in the portal page to load.
+// Option `-topLinks` specifies the maximal number of links selected by `-outLink`.
+val pages = session.loadOutPages(url, "-expires 10s -itemExpires 10s -outLink a[href~=/dp/] -topLinks 10")
+
+// Load the portal page and submit the out links specified by `-outLink` to the URL pool.
+// Option `-outLink` specifies the cssSelector to select links in the portal page to submit.
+// Option `-topLinks` specifies the maximal number of links selected by `-outLink`.
+session.submitOutPages(url, "-expires 1d -itemExpires 7d -outLink a[href~=/dp/] -topLinks 10")
+
+// Load, parse and scrape fields
+val fields = session.scrape(url, "-expires 10s", "#centerCol",
+    listOf("#title", "#acrCustomerReviewText"))
+
+// Load, parse and scrape named fields
+val fields2 = session.scrape(url, "-i 10s", "#centerCol",
+    mapOf("title" to "#title", "reviews" to "#acrCustomerReviewText"))
+
+// Load, parse and scrape named fields
+val fields3 = session.scrapeOutPages(url, "-i 10s -ii 10s -outLink a[href~=/dp/] -topLink 10", "#centerCol",
+    mapOf("title" to "#title", "reviews" to "#acrCustomerReviewText"))
+
+// Add `-parse` option to activate the parsing subsystem
+val page10 = session.load(url, "-parse -expires 10s")
+
+// Kotlin suspend calls
+val page11 = runBlocking { session.loadDeferred(url, "-expires 10s") }
+
+// Java-style async calls
+session.loadAsync(url, "-expires 10s").thenApply(session::parse).thenAccept(session::export)
 ----
 
-Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/BasicUsage.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/BasicUsage.java[java].
+Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_0_BasicUsage.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/BasicUsage.java[java].
 
 *Load options*
 
@@ -276,7 +305,7 @@ public class ContinuousCrawler {
 }
 ----
 
-Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/MassiveCrawler.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/ContinuousCrawler.java[java].
+Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_9_MassiveCrawler.kt[kotlin], link:pulsar-app/pulsar-examples/src/main/java/ai/platon/pulsar/examples/ContinuousCrawler.java[java].
 
 === RPA (Robotic Process Automation)
 
@@ -286,7 +315,10 @@ Pulsar provides a convenient way to mimic real people during the lifecycle of a 
 
 Here is a typical RPA code snippet, which is required to collect data from most top e-comm sites.
 
-```kotlin
+Kotlin:
+
+[source,kotlin]
+----
 val options = session.options(args)
 val event = options.event.browseEvent
 event.onBrowserLaunched.addLast { page, driver ->
@@ -308,7 +340,7 @@ event.onWillCheckDocumentState.addLast { page, driver ->
 }
 // visit the URL and trigger events
 session.load(url, options)
-```
+----
 
 Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/sites/food/dianping/RestaurantCrawler.kt[kotlin].
 
@@ -316,7 +348,7 @@ Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/e
 
 Scrape a single page:
 
-[source,sql]
+[source,sql,dialect=H2]
 ----
 select
       dom_first_text(dom, '#productTitle') as title,
@@ -343,7 +375,7 @@ TITLE                                                   | BRAND                 
 HUAWEI P20 Lite (32GB + 4GB RAM) 5.84" FHD+ Display ... | Visit the HUAWEI Store | $1.9.11 | 1,349 ratings | 4.40
 ----
 
-Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/XSQLDemo.kt[kotlin].
+Example code: link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_10_XSQL.kt[kotlin].
 
 Click link:docs/x-sql.adoc[X-SQL] to see a detailed introduction and function descriptions about X-SQL.
 
@@ -372,7 +404,9 @@ Scrape a webpage in another terminal window:
 ----
 bin/scrape.sh
 ----
+
 The bash script is quite simple, just use curl to post an X-SQL:
+
 [source,sql]
 ----
 curl -X POST --location "http://localhost:8182/api/x/e" -H "Content-Type: text/plain" -d "
@@ -406,7 +440,7 @@ The response is as follows in json format:
             "listprice": "$19.99",
             "price": "$12.99",
             "categories": "Toys & Games|Arts & Crafts|Craft Kits|Jewelry",
-            "baseuri": "https://www.amazon.com/dp/B00BTX5926"
+            "baseuri": "https://www.amazon.com/dp/B09V3KXJPB"
         }
     ],
     "pageStatus": "OK",
@@ -415,6 +449,22 @@ The response is as follows in json format:
 ----
 
 Click link:docs/x-sql.adoc[X-SQL] to see a detailed introduction and function descriptions about X-SQL.
+
+== Step-by-step course
+
+We have a step-by-step course by example:
+
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_0_BasicUsage.kt[BasicUsage]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_1_LoadOptions.kt[LoadOptions]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_2_URLs.kt[URLs]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_3_JvmAsync.kt[JvmAsync]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_4_Coroutine.kt[Flow]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_5_ContinuousCrawler.kt[ContinuousCrawler]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_6_EventHandler.kt[EventHandler]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_7_RPA.kt[RPA]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_8_WebDriver.kt[WebDriver]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_9_MassiveCrawler.kt[MassiveCrawler]
+. link:pulsar-app/pulsar-examples/src/main/kotlin/ai/platon/pulsar/examples/_10_XSQL.kt[X-SQL]
 
 == Logs & Metrics
 

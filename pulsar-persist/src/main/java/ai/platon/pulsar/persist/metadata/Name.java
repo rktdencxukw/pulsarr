@@ -55,16 +55,14 @@ public enum Name {
     //////////////////////////
     // parse section
     //////////////////////////
-    /**
-     * Embedded query is not used any more, use SQL instead
-     * */
     NO_FOLLOW("PNF"),
     FORCE_FOLLOW("PFF"),
     REPARSE_LINKS("PRL"),
     PARSE_NO_LINK_FILTER("PNF"),
     PARSE_LINK_FILTER_DEBUG_LEVEL("PLFDL"),
     TOTAL_OUT_LINKS("PTOL"),
-    ANCHORS("P_AS"),
+    ANCHOR_COUNT("PAC"),
+    ORIGINAL_CONTENT_LENGTH("POCL"),
 
     MODEL_SYNC_TIME("PMST"),
 
@@ -116,7 +114,7 @@ public enum Name {
     TMP_IS_DETAIL("T_ID"),
     TMP_CHARS("T_C");
 
-    private String text;
+    private final String text;
 
     Name(String name) {
         this.text = name;

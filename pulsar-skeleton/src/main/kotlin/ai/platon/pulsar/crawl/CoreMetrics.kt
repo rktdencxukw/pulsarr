@@ -8,7 +8,7 @@ import ai.platon.pulsar.common.config.CapabilityTypes.*
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.config.Parameterized
 import ai.platon.pulsar.common.config.Params
-import ai.platon.pulsar.common.emoji.UnicodeEmoji
+import ai.platon.pulsar.common.emoji.PopularEmoji
 import ai.platon.pulsar.common.measure.ByteUnitConverter
 import ai.platon.pulsar.common.message.MiscMessageWriter
 import ai.platon.pulsar.common.metrics.AppMetrics
@@ -40,12 +40,14 @@ class CoreMetrics(
     companion object {
         var runningChromeProcesses = 0
         var usedMemory = 0L
+        var cpuLoad = 0.0
 
         init {
             mapOf(
                 "version" to Gauge { AppContext.APP_VERSION },
                 "runningChromeProcesses" to Gauge { runningChromeProcesses },
                 "usedMemory" to Gauge { Strings.compactFormat(usedMemory) },
+                "cpuLoad" to Gauge { String.format("%.2f", cpuLoad) },
 
                 "pulsarSessionPageCacheHits" to Gauge { AbstractPulsarSession.pageCacheHits },
                 "pulsarSessionPageCacheHits/s" to Gauge { 1.0 * AbstractPulsarSession.pageCacheHits.get() / DateTimes.elapsedSeconds() },
@@ -77,7 +79,7 @@ class CoreMetrics(
     val maxHostFailureEvents = conf.getInt(FETCH_MAX_HOST_FAILURES, 20)
     private val systemInfo = SystemInfo()
 
-    // Exception on windows 11:
+    // Exception on Windows 11:
     // Caused by: java.lang.IllegalStateException: Unmapped relationship: 7
     //	at com.sun.jna.platform.win32.WinNT$SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX.fromPointer(WinNT.java:3033)
 //    private val processor = systemInfo.hardware.processor
@@ -110,8 +112,8 @@ class CoreMetrics(
     val unreachableHosts = ConcurrentSkipListSet<String>()
 
     /**
-     * Tracking hosts who is failed to fetch tasks.
-     * A host is considered to be a unreachable host if there are too many failure
+     * Tracking hosts who are failed to fetch tasks.
+     * A host is considered to be an unreachable host if there are too many failure
      */
     val timeoutUrls = ConcurrentSkipListSet<String>()
     val movedUrls = ConcurrentSkipListSet<String>()
@@ -354,7 +356,7 @@ class CoreMetrics(
         val count = successFetchTasks.count.coerceAtLeast(1)
         val bytes = meterContentBytes.count
         val proxyFmt = if (proxies.count > 0) " using %s proxies" else ""
-        val symbol = UnicodeEmoji.DELIVERY_TRUCK
+        val symbol = PopularEmoji.DELIVERY_TRUCK
         var format = "$symbol Fetched %d pages in %s(%.2f pages/s) successfully$proxyFmt | content: %s, %s/s, %s/p"
         // format += " | net recv: %s, %s/s, %s/p | total net recv: %s"
         return String.format(
@@ -393,7 +395,7 @@ class CoreMetrics(
         }
     }
 
-    private fun updateSystemInfo() {
+    fun updateSystemInfo() {
         kotlin.runCatching { updateSystemInfo0() }.onFailure { logger.warn("[Unexpected]", it) }
     }
 
@@ -410,7 +412,8 @@ class CoreMetrics(
         meterTotalNetworkIFsRecvMBytes.mark(totalNetworkIFsRecvBytes / 1024 / 1024)
 
         runningChromeProcesses = Runtimes.countSystemProcess("chrome")
-        usedMemory = systemInfo.hardware.memory.total - systemInfo.hardware.memory.available
+        usedMemory = AppSystemInfo.usedMemory
+        cpuLoad = AppSystemInfo.systemCpuLoad
     }
 
     private fun startReporter() {

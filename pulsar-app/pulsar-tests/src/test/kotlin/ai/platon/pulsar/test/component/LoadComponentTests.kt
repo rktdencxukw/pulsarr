@@ -1,10 +1,6 @@
 package ai.platon.pulsar.test.component
 
-import ai.platon.pulsar.boot.autoconfigure.test.PulsarTestContextInitializer
 import ai.platon.pulsar.common.LinkExtractors
-import ai.platon.pulsar.common.prependReadableClassName
-import ai.platon.pulsar.common.urls.NormURL
-import ai.platon.pulsar.crawl.CrawlLoops
 import ai.platon.pulsar.crawl.component.LoadComponent
 import ai.platon.pulsar.test.TestBase
 import kotlinx.coroutines.flow.asFlow
@@ -14,19 +10,12 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.test.context.ContextConfiguration
-import org.springframework.test.context.junit4.SpringRunner
 import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@RunWith(SpringRunner::class)
-@SpringBootTest
-@ContextConfiguration(initializers = [PulsarTestContextInitializer::class])
 class LoadComponentTests: TestBase() {
     private val url = "https://www.amazon.com/Best-Sellers-Beauty/zgbs/beauty"
     private val urls = LinkExtractors.fromResource("categories.txt")
@@ -42,25 +31,25 @@ class LoadComponentTests: TestBase() {
 
     @Test
     fun testLoadAll() {
-        val normURLs = urls.take(5).map { session.normalize(it, args) }
-        val pages = loadComponent.loadAll(normURLs)
-        val pages2 = loadComponent.loadAll(normURLs)
+        val normUrls = urls.take(5).map { session.normalize(it, args) }
+        val pages = loadComponent.loadAll(normUrls)
+        val pages2 = loadComponent.loadAll(normUrls)
         assertEquals(pages.size, pages2.size)
     }
 
     @Test
     fun testLoadAllWithAllCached() {
-        val normURLs = urls.take(5).map { session.normalize(it, args) }
-        val pages = loadComponent.loadAll(normURLs)
-        val normURLs3 = urls.take(5).map { session.normalize(it) }
-        val pages3 = loadComponent.loadAll(normURLs3)
+        val normUrls = urls.take(5).map { session.normalize(it, args) }
+        val pages = loadComponent.loadAll(normUrls)
+        val normUrls3 = urls.take(5).map { session.normalize(it) }
+        val pages3 = loadComponent.loadAll(normUrls3)
         assertEquals(pages.size, pages3.size)
     }
 
     @Test
     fun testLoadAsync() {
-        val normURL = session.normalize(url, args)
-        val future = loadComponent.loadAsync(normURL)
+        val normUrl = session.normalize(url, args)
+        val future = loadComponent.loadAsync(normUrl)
         assertFalse(future.isCancelled)
         assertFalse(future.isDone)
         future.thenAccept { println(it.url) }
@@ -71,32 +60,32 @@ class LoadComponentTests: TestBase() {
 
     @Test
     fun testLoadAllAsync() {
-        val normURLs = urls.take(5).map { session.normalize(it, args) }
+        val normUrls = urls.take(5).map { session.normalize(it, args) }
         val resultUrls = mutableListOf<String>()
-        val futures = loadComponent.loadAllAsync(normURLs)
+        val futures = loadComponent.loadAllAsync(normUrls)
             .map { it.thenApply { resultUrls.add(it.url) } }
 
         val future = CompletableFuture.allOf(*futures.toTypedArray())
         future.join()
 
-        assertEquals(normURLs.size, resultUrls.size)
+        assertEquals(normUrls.size, resultUrls.size)
     }
 
     @Test
     fun testLoadAllAsFlow() {
-        val normURLs = urls.take(5).map { session.normalize(it, args) }
+        val normUrls = urls.take(5).map { session.normalize(it, args) }
 
         val resultUrls = mutableListOf<String>()
         runBlocking {
-            normURLs.asFlow()
+            normUrls.asFlow()
                 .map { loadComponent.loadDeferred(it) }
                 .onEach { resultUrls.add(it.url) }
                 .map { it.contentLength }
                 .collect()
         }
 
-        assertEquals(normURLs.size, resultUrls.size)
-        assertEquals(resultUrls[0], normURLs[0].spec)
-        assertEquals(resultUrls[1], normURLs[1].spec)
+        assertEquals(normUrls.size, resultUrls.size)
+        assertEquals(resultUrls[0], normUrls[0].spec)
+        assertEquals(resultUrls[1], normUrls[1].spec)
     }
 }

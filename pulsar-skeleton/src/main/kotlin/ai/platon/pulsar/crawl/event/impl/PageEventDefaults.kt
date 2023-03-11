@@ -13,7 +13,7 @@ open class DefaultLoadEvent(
 
 open class DefaultCrawlEvent: AbstractCrawlEvent()
 
-class DefaultBrowseEvent(
+class PerfectTraceBrowseEvent(
     val rpa: BrowseRPA = DefaultBrowseRPA()
 ): AbstractBrowseEvent() {
 
@@ -29,6 +29,17 @@ class DefaultBrowseEvent(
     }
 }
 
+class EmptyBrowseEvent(
+    val rpa: BrowseRPA = DefaultBrowseRPA()
+): AbstractBrowseEvent() {
+
+}
+
+typealias DefaultBrowseEvent = EmptyBrowseEvent
+
+/**
+ * TODO: use a page event factory
+ * */
 open class DefaultPageEvent(
     loadEvent: LoadEvent = DefaultLoadEvent(),
     browseEvent: BrowseEvent = DefaultBrowseEvent(),

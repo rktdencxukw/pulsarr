@@ -5,7 +5,6 @@ import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.stringify
 import ai.platon.pulsar.common.urls.UrlUtils
 import ai.platon.pulsar.common.urls.UrlUtils.reverseUrlOrNull
-import ai.platon.pulsar.persist.gora.GoraWebPage
 import ai.platon.pulsar.persist.gora.db.DbIterator
 import ai.platon.pulsar.persist.gora.db.DbQuery
 import ai.platon.pulsar.persist.gora.generated.GWebPage
@@ -44,26 +43,26 @@ class WebDb(
     val dataStoreOrNull: DataStore<String, GWebPage>? get() = if (dataStoreDelegate.isInitialized()) dataStore else null
     val schemaName: String get() = dataStoreOrNull?.schemaName?:"(unknown, not initialized)"
 
-    fun getOrNull(originalUrl: String, field: GWebPage.Field): GoraWebPage? {
+    fun getOrNull(originalUrl: String, field: GWebPage.Field): WebPage? {
         return getOrNull(originalUrl, field.toString())
     }
 
-    fun getOrNull(originalUrl: String, fields: Iterable<GWebPage.Field>): GoraWebPage? {
+    fun getOrNull(originalUrl: String, fields: Iterable<GWebPage.Field>): WebPage? {
         return getOrNull(originalUrl, false, fields.map { it.toString() }.toTypedArray())
     }
 
-    fun getOrNull(originalUrl: String, field: String): GoraWebPage? {
+    fun getOrNull(originalUrl: String, field: String): WebPage? {
         return getOrNull(originalUrl, false, arrayOf(field))
     }
 
     /**
-     * Returns the GoraWebPage corresponding to the given url.
+     * Returns the WebPage corresponding to the given url.
      *
      * @param originalUrl the original url of the page, it comes from user input, web page parsing, etc
-     * @param fields the fields required in the GoraWebPage. Pass null, to retrieve all fields
-     * @return the GoraWebPage corresponding to the key or null if it cannot be found
+     * @param fields the fields required in the WebPage. Pass null, to retrieve all fields
+     * @return the WebPage corresponding to the key or null if it cannot be found
      */
-    fun getOrNull(originalUrl: String, norm: Boolean = false, fields: Array<String>? = null): GoraWebPage? {
+    fun getOrNull(originalUrl: String, norm: Boolean = false, fields: Array<String>? = null): WebPage? {
         val (url, key) = UrlUtils.normalizedUrlAndKey(originalUrl, norm)
 
         tracer?.trace("Getting $key")
@@ -74,7 +73,7 @@ class WebDb(
         accumulateGetNanos.addAndGet(System.nanoTime() - startTime)
 
         if (page != null) {
-            val p = GoraWebPage.box(url, key, page, conf.toVolatileConfig()).also { it.isLoaded = true }
+            val p = WebPage.box(url, key, page, conf.toVolatileConfig()).also { it.isLoaded = true }
 
             tracer?.trace("Got ${p.fetchCount} ${p.prevFetchTime} ${p.fetchTime} $key")
 
@@ -85,21 +84,20 @@ class WebDb(
     }
 
     /**
-     * Returns the GoraWebPage corresponding to the given url.
+     * Returns the WebPage corresponding to the given url.
      *
      * @param originalUrl the original address of the page
-     * @return the GoraWebPage corresponding to the key or GoraWebPage.NIL if it cannot be found
+     * @return the WebPage corresponding to the key or WebPage.NIL if it cannot be found
      */
-    fun get(originalUrl: String, field: GWebPage.Field): WebPage =
-        getOrNull(originalUrl, field) ?: GoraWebPage.NIL
+    fun get(originalUrl: String, field: GWebPage.Field) = getOrNull(originalUrl, field) ?: WebPage.NIL
 
-    fun get(originalUrl: String, fields: Iterable<GWebPage.Field>): WebPage =
-        getOrNull(originalUrl, fields) ?: GoraWebPage.NIL
+    fun get(originalUrl: String, fields: Iterable<GWebPage.Field>) =
+        getOrNull(originalUrl, fields) ?: WebPage.NIL
 
-    fun get(originalUrl: String, field: String): WebPage = getOrNull(originalUrl, field) ?: GoraWebPage.NIL
+    fun get(originalUrl: String, field: String) = getOrNull(originalUrl, field) ?: WebPage.NIL
 
     fun get(originalUrl: String, norm: Boolean = false, fields: Array<String>? = null): WebPage {
-        return getOrNull(originalUrl, norm, fields) ?: GoraWebPage.NIL
+        return getOrNull(originalUrl, norm, fields) ?: WebPage.NIL
     }
 
     fun exists(originalUrl: String, norm: Boolean = false): Boolean {
@@ -118,10 +116,6 @@ class WebDb(
     private fun putInternal(page: WebPage, replaceIfExists: Boolean): Boolean {
         // Never update NIL page
         if (page.isNil) {
-            return false
-        }
-
-        if (page !is GoraWebPage) {
             return false
         }
 
@@ -144,7 +138,7 @@ class WebDb(
         return true
     }
 
-    fun putAll(pages: Iterable<GoraWebPage>) = pages.forEach { put(it, false) }
+    fun putAll(pages: Iterable<WebPage>) = pages.forEach { put(it, false) }
 
     @JvmOverloads
     fun delete(originalUrl: String, norm: Boolean = false): Boolean {
@@ -177,9 +171,9 @@ class WebDb(
     }
 
     /**
-     * Scan all pages whose url starts with {@param originalUrl}
+     * Scan all pages whose url starts with {@param urlBase}
      *
-     * @param urlBase The base url
+     * @param urlBase The base url to start with
      * @return The iterator to retrieve pages
      */
     fun scan(urlBase: String): Iterator<WebPage> {
@@ -191,24 +185,24 @@ class WebDb(
     }
 
     /**
-     * Scan all pages who's url starts with {@param originalUrl}
+     * Scan all pages whose url starts with {@param urlBase}
      *
-     * @param originalUrl The base url
+     * @param urlBase The base url to start with
      * @return The iterator to retrieve pages
      */
-    fun scan(originalUrl: String, fields: Iterable<GWebPage.Field>): Iterator<WebPage> {
-        return scan(originalUrl, fields.map { it.toString() }.toTypedArray())
+    fun scan(urlBase: String, fields: Iterable<GWebPage.Field>): Iterator<WebPage> {
+        return scan(urlBase, fields.map { it.toString() }.toTypedArray())
     }
 
     /**
-     * Scan all pages who's url starts with {@param originalUrl}
+     * Scan all pages whose url starts with {@param urlBase}
      *
-     * @param originalUrl The base url
+     * @param urlBase The base url to start with
      * @return The iterator to retrieve pages
      */
-    fun scan(originalUrl: String, fields: Array<String>): Iterator<WebPage> {
+    fun scan(urlBase: String, fields: Array<String>): Iterator<WebPage> {
         val query = dataStore.newQuery()
-        query.setKeyRange(reverseUrlOrNull(originalUrl), reverseUrlOrNull(originalUrl + UNICODE_LAST_CODE_POINT))
+        query.setKeyRange(reverseUrlOrNull(urlBase), reverseUrlOrNull(urlBase + UNICODE_LAST_CODE_POINT))
         query.setFields(*fields)
 
         val result = dataStore.execute(query)
@@ -216,16 +210,16 @@ class WebDb(
     }
 
     /**
-     * Scan all pages who's url starts with {@param originalUrl}
+     * Scan all pages whose url starts with {@param urlBase}
      *
-     * @param originalUrl The base url
+     * @param urlBase The base url to start with
      * @return The iterator to retrieve pages
      */
-    fun scan(originalUrl: String, fields: Array<String>, filter: Filter<String, GWebPage>): Iterator<WebPage> {
+    fun scan(urlBase: String, fields: Array<String>, filter: Filter<String, GWebPage>): Iterator<WebPage> {
         val query = dataStore.newQuery()
 
         query.filter = filter
-        query.setKeyRange(reverseUrlOrNull(originalUrl), reverseUrlOrNull(originalUrl + UNICODE_LAST_CODE_POINT))
+        query.setKeyRange(reverseUrlOrNull(urlBase), reverseUrlOrNull(urlBase + UNICODE_LAST_CODE_POINT))
         query.setFields(*fields)
 
         val result = dataStore.execute(query)

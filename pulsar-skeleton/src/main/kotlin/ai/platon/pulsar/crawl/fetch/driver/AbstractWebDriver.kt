@@ -7,10 +7,10 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.io.IOException
-import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.random.Random
@@ -23,9 +23,14 @@ abstract class AbstractWebDriver(
         val instanceSequencer = AtomicInteger()
     }
 
+    private val jsoupCreateDestroyMonitor = Any()
+    private var jsoupSession: Connection? = null
+    private val canceled = AtomicBoolean()
+    private val crashed = AtomicBoolean()
+
     override var idleTimeout: Duration = Duration.ofMinutes(10)
 
-    override var waitForTimeout = Duration.ofMinutes(1)
+    override var waitForElementTimeout = Duration.ofSeconds(20)
 
     override val name get() = javaClass.simpleName + "-" + id
 
@@ -37,7 +42,7 @@ abstract class AbstractWebDriver(
             "mouseWheel" -> 800L + Random.nextInt(500)
             "dragAndDrop" -> 800L + Random.nextInt(500)
             "waitForNavigation" -> 500L
-            "waitForSelector" -> 500L
+            "waitForSelector" -> 1000L
             else -> 100L + Random.nextInt(500)
         }
     }
@@ -52,30 +57,47 @@ abstract class AbstractWebDriver(
 
     override var isRecovered: Boolean = false
 
-    override val status = AtomicReference(WebDriver.Status.UNKNOWN)
+    override var isReused: Boolean = false
+
+    override val state = AtomicReference(WebDriver.State.INIT)
 
     override var lastActiveTime: Instant = Instant.now()
 
-    override val isWorking get() = status.get().isWorking
-    override val isRetired get() = status.get().isRetired
-    override val isCanceled get() = status.get().isCanceled
-    override val isQuit get() = status.get().isQuit
-    override val isFree get() = status.get().isFree
-    override val isCrashed get() = status.get().isCrashed
+    override val isInit get() = state.get().isInit
+    override val isReady get() = state.get().isReady
+    @Deprecated("Inappropriate name", replaceWith = ReplaceWith("isReady()"))
+    override val isFree get() = isReady
+    override val isWorking get() = state.get().isWorking
+    override val isRetired get() = state.get().isRetired
+    override val isQuit get() = state.get().isQuit
 
-    private val jsoupCreateDestroyMonitor = Any()
-    private var jsoupSession: Connection? = null
+    override val isCanceled get() = canceled.get()
+    override val isCrashed get() = crashed.get()
 
-    override fun free() = status.set(WebDriver.Status.FREE)
-    override fun startWork() = status.set(WebDriver.Status.WORKING)
-    override fun retire() = status.set(WebDriver.Status.RETIRED)
-    override fun cancel() {
-        if (status.compareAndSet(WebDriver.Status.WORKING, WebDriver.Status.CANCELED)) {
+    override fun free() {
+        canceled.set(false)
+        crashed.set(false)
+        if (!isInit && !isWorking) {
+            throw IllegalStateException("A driver has to be ready before work, actual $state")
         }
+        state.set(WebDriver.State.READY)
+    }
+    override fun startWork() {
+        canceled.set(false)
+        crashed.set(false)
+        if (!isInit && !isReady) {
+            throw IllegalStateException("A driver has to be ready before work, actual $state")
+        }
+        state.set(WebDriver.State.WORKING)
+    }
+    override fun retire() = state.set(WebDriver.State.RETIRED)
+    override fun cancel() {
+        canceled.set(true)
     }
 
     override fun jvm(): JvmWebDriver = this
 
+    @Deprecated("Not used any more", ReplaceWith("id.toString()"))
     override val sessionId: String?
         get() = id.toString()
 
@@ -87,7 +109,7 @@ abstract class AbstractWebDriver(
         waitForSelector(selector, Duration.ofMillis(timeoutMillis))
 
     @Throws(WebDriverException::class)
-    override suspend fun waitForSelector(selector: String): Long = waitForSelector(selector, waitForTimeout)
+    override suspend fun waitForSelector(selector: String): Long = waitForSelector(selector, waitForElementTimeout)
 
     @Throws(WebDriverException::class)
     override suspend fun waitForNavigation(): Long = waitForNavigation(Duration.ofSeconds(10))
@@ -171,8 +193,8 @@ abstract class AbstractWebDriver(
     }
 
     @Throws(WebDriverException::class)
-    override suspend fun clickMatches(selector: String, pattern: String, count: Int) {
-        evaluate("__pulsar_utils__.clickMatches('$selector', '$pattern')")
+    override suspend fun clickTextMatches(selector: String, pattern: String, count: Int) {
+        evaluate("__pulsar_utils__.clickTextMatches('$selector', '$pattern')")
     }
 
     @Throws(WebDriverException::class)
@@ -265,9 +287,11 @@ abstract class AbstractWebDriver(
         // Since the browser uses the system proxy (by default),
         // so the http connection should also use the system proxy
         val proxy = browser.id.proxyServer ?: System.getenv("http_proxy")
-        if (proxy != null && UrlUtils.isValidUrl(proxy)) {
-            val u = URL(proxy)
-            session.proxy(u.host, u.port)
+        if (proxy != null && UrlUtils.isStandard(proxy)) {
+            val u = UrlUtils.getURLOrNull(proxy)
+            if (u != null) {
+                session.proxy(u.host, u.port)
+            }
         }
 
         return session

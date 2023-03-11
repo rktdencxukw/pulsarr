@@ -63,6 +63,8 @@ class MockWebDriver(
 
     override suspend fun addBlockedURLs(urls: List<String>) = backupDriverOrNull?.addBlockedURLs(urls) ?: Unit
 
+    override suspend fun addProbabilityBlockedURLs(urls: List<String>) = backupDriverOrNull?.addProbabilityBlockedURLs(urls) ?: Unit
+
     @Throws(WebDriverException::class)
     override suspend fun navigateTo(entry: NavigateEntry) {
         backupDriverOrNull?.navigateTo(entry)
@@ -76,6 +78,11 @@ class MockWebDriver(
     @Throws(WebDriverException::class)
     override suspend fun waitForNavigation(timeout: Duration): Long {
         return backupDriverOrNull?.waitForNavigation(timeout) ?: 0
+    }
+
+    @Throws(WebDriverException::class)
+    override suspend fun waitForPage(url: String, timeout: Duration): WebDriver? {
+        return backupDriverOrNull?.waitForPage(url, timeout)
     }
 
     override suspend fun setTimeouts(browserSettings: BrowserSettings) {
@@ -128,10 +135,16 @@ class MockWebDriver(
     }
 
     @Throws(WebDriverException::class)
+    override suspend fun evaluateDetail(expression: String): JsEvaluation? {
+        return backupDriverOrNull?.evaluateDetail(expression)
+    }
+
+    @Throws(WebDriverException::class)
     override suspend fun scrollTo(selector: String) {
         backupDriverOrNull?.scrollTo(selector)
     }
 
+    @Deprecated("Not used any more")
     override val sessionId: String?
         @Throws(WebDriverException::class)
         get() = backupDriverOrNull?.sessionId
@@ -153,6 +166,11 @@ class MockWebDriver(
     override suspend fun isVisible(selector: String) = backupDriverOrNull?.isVisible(selector) ?: false
 
     @Throws(WebDriverException::class)
+    override suspend fun focus(selector: String) {
+        backupDriverOrNull?.focus(selector)
+    }
+
+    @Throws(WebDriverException::class)
     override suspend fun type(selector: String, text: String) {
         backupDriverOrNull?.type(selector, text)
     }
@@ -162,6 +180,11 @@ class MockWebDriver(
         backupDriverOrNull?.click(selector, count)
     }
 
+    override suspend fun clickTextMatches(selector: String, pattern: String, count: Int) {
+        backupDriverOrNull?.clickTextMatches(selector, pattern, count)
+    }
+
+    @Deprecated("Inappropriate name", replaceWith = ReplaceWith("clickTextMatches(selector, pattern, count"))
     @Throws(WebDriverException::class)
     override suspend fun clickMatches(selector: String, pattern: String, count: Int) {
         backupDriverOrNull?.clickMatches(selector, pattern, count)
@@ -185,6 +208,11 @@ class MockWebDriver(
     @Throws(WebDriverException::class)
     override suspend fun moveMouseTo(x: Double, y: Double) {
         backupDriverOrNull?.moveMouseTo(x, y)
+    }
+
+    @Throws(WebDriverException::class)
+    override suspend fun moveMouseTo(selector: String, deltaX: Int, deltaY: Int) {
+        backupDriverOrNull?.moveMouseTo(selector, deltaX, deltaY)
     }
 
     @Throws(WebDriverException::class)

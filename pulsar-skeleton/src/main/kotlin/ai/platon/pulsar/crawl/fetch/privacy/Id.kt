@@ -1,10 +1,10 @@
 package ai.platon.pulsar.crawl.fetch.privacy
 
 import ai.platon.pulsar.common.AppPaths
+import ai.platon.pulsar.common.browser.BrowserType
 import ai.platon.pulsar.common.browser.Fingerprint
 import ai.platon.pulsar.common.config.CapabilityTypes
 import ai.platon.pulsar.common.config.ImmutableConfig
-import ai.platon.pulsar.common.browser.BrowserType
 import ai.platon.pulsar.common.readableClassName
 import org.apache.commons.lang3.RandomStringUtils
 import org.slf4j.LoggerFactory
@@ -12,25 +12,43 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * The privacy context id defines a unique id of a privacy context.
- * Website visits through different privacy contexts should not be detected
- * as the same person, even if the visits are from the same host.
- * */
-data class PrivacyContextId(
+data class PrivacyAgentId(
     val contextDir: Path,
-    var fingerprint: Fingerprint
-): Comparable<PrivacyContextId> {
+    val browserType: BrowserType
+): Comparable<PrivacyAgentId> {
+    override fun compareTo(other: PrivacyAgentId): Int {
+        return contextDir.compareTo(other.contextDir)
+    }
 
-    val ident = contextDir.last().toString()
-    val display = ident.substringAfter(PrivacyContext.IDENT_PREFIX)
     val isDefault get() = this == DEFAULT
     val isPrototype get() = this == PROTOTYPE
+
+    companion object {
+        val DEFAULT = PrivacyAgentId(PrivacyContext.DEFAULT_DIR, BrowserType.PULSAR_CHROME)
+        val PROTOTYPE = PrivacyAgentId(PrivacyContext.PROTOTYPE_CONTEXT_DIR, BrowserType.PULSAR_CHROME)
+    }
+}
+
+/**
+ * The privacy agent defines a unique agent to visit websites.
+ *
+ * Page visits through different privacy agents should not be detected
+ * as the same person, even if the visits are from the same host.
+ * */
+data class PrivacyAgent(
+    val contextDir: Path,
+    var fingerprint: Fingerprint
+): Comparable<PrivacyAgent> {
+
+    val id = PrivacyAgentId(contextDir, fingerprint.browserType)
+    val ident = contextDir.last().toString()
+    val display = ident.substringAfter(PrivacyContext.IDENT_PREFIX)
+    val browserType get() = fingerprint.browserType
 
     constructor(contextDir: Path, browserType: BrowserType): this(contextDir, Fingerprint(browserType))
 
     /**
-     * The PrivacyContextId equality.
+     * The PrivacyAgent equality.
      * Note: do not use the default equality function
      * */
     override fun equals(other: Any?): Boolean {
@@ -38,30 +56,34 @@ data class PrivacyContextId(
             return true
         }
 
-        return other is PrivacyContextId
+        return other is PrivacyAgent
                 && other.contextDir == contextDir
-                && other.fingerprint.browserType.toString() == fingerprint.browserType.toString()
+                && other.browserType.name == browserType.name
     }
 
     override fun hashCode(): Int {
-        return 31 * contextDir.hashCode() + fingerprint.browserType.toString().hashCode()
+        return 31 * contextDir.hashCode() + browserType.name.hashCode()
     }
 
-    override fun compareTo(other: PrivacyContextId): Int {
+    override fun compareTo(other: PrivacyAgent): Int {
         val r = contextDir.compareTo(other.contextDir)
         if (r != 0) {
             return r
         }
-        return fingerprint.browserType.toString().compareTo(other.fingerprint.browserType.toString())
+//        return fingerprint.compareTo(other.fingerprint)
+        return browserType.name.compareTo(other.browserType.name)
     }
 
 //    override fun toString() = /** AUTO GENERATED **/
 
     companion object {
-        val DEFAULT = PrivacyContextId(PrivacyContext.DEFAULT_DIR, BrowserType.PULSAR_CHROME)
-        val PROTOTYPE = PrivacyContextId(PrivacyContext.PROTOTYPE_DIR, BrowserType.PULSAR_CHROME)
+        val DEFAULT = PrivacyAgent(PrivacyContext.DEFAULT_DIR, BrowserType.PULSAR_CHROME)
+        val PROTOTYPE = PrivacyAgent(PrivacyContext.PROTOTYPE_CONTEXT_DIR, BrowserType.PULSAR_CHROME)
     }
 }
+
+@Deprecated("Inappropriate name", ReplaceWith("PrivacyAgentId"))
+typealias PrivacyContextId = PrivacyAgent
 
 /**
  * The unique browser id.
@@ -76,7 +98,10 @@ data class BrowserId constructor(
     val browserType: BrowserType get() = fingerprint.browserType
     val proxyServer: String? get() = fingerprint.proxyServer
 
-    val userDataDir get() = contextDir.resolve(browserType.name.lowercase())
+    val userDataDir: Path get() = when {
+        contextDir == PrivacyContext.PROTOTYPE_CONTEXT_DIR -> PrivacyContext.PROTOTYPE_DATA_DIR
+        else -> contextDir.resolve(browserType.name.lowercase())
+    }
     val ident get() = contextDir.last().toString() + browserType.ordinal
     val display get() = ident.substringAfter(PrivacyContext.IDENT_PREFIX)
 
@@ -89,11 +114,11 @@ data class BrowserId constructor(
 
         return other is BrowserId
                 && other.contextDir == contextDir
-                && other.fingerprint.toString() == fingerprint.toString()
+                && other.browserType.name == browserType.name
     }
 
     override fun hashCode(): Int {
-        return 31 * contextDir.hashCode() + fingerprint.toString().hashCode()
+        return 31 * contextDir.hashCode() + browserType.name.hashCode()
     }
 
     override fun compareTo(other: BrowserId): Int {
@@ -101,7 +126,7 @@ data class BrowserId constructor(
         if (r != 0) {
             return r
         }
-        return fingerprint.toString().compareTo(other.fingerprint.toString())
+        return browserType.name.compareTo(other.browserType.name)
     }
 
     override fun toString(): String {
@@ -110,6 +135,7 @@ data class BrowserId constructor(
 
     companion object {
         val DEFAULT = BrowserId(AppPaths.BROWSER_TMP_DIR, Fingerprint(BrowserType.PULSAR_CHROME))
+        val PROTOTYPE = BrowserId(PrivacyContext.PROTOTYPE_CONTEXT_DIR, Fingerprint(BrowserType.PULSAR_CHROME))
     }
 }
 
@@ -121,15 +147,22 @@ interface PrivacyContextIdGenerator {
 }
 
 class DefaultPrivacyContextIdGenerator: PrivacyContextIdGenerator {
-    override fun invoke(fingerprint: Fingerprint): PrivacyContextId = PrivacyContextId(PrivacyContext.DEFAULT_DIR, fingerprint)
+    companion object {
+        private val sequencer = AtomicInteger()
+        private val nextContextDir
+            get() = PrivacyContext.DEFAULT_DIR.resolve(sequencer.incrementAndGet().toString())
+    }
+
+    override fun invoke(fingerprint: Fingerprint): PrivacyContextId = PrivacyContextId(nextContextDir, fingerprint)
 }
 
 class PrototypePrivacyContextIdGenerator: PrivacyContextIdGenerator {
-    override fun invoke(fingerprint: Fingerprint): PrivacyContextId = PrivacyContextId(PrivacyContext.PROTOTYPE_DIR.parent, fingerprint)
+    override fun invoke(fingerprint: Fingerprint) = PrivacyContextId.PROTOTYPE
 }
 
 class SequentialPrivacyContextIdGenerator: PrivacyContextIdGenerator {
-    override fun invoke(fingerprint: Fingerprint): PrivacyContextId = PrivacyContextId(nextContextDir(), fingerprint)
+    override fun invoke(fingerprint: Fingerprint): PrivacyContextId =
+        PrivacyContextId(nextContextDir(), fingerprint)
 
     @Synchronized
     private fun nextContextDir(): Path {

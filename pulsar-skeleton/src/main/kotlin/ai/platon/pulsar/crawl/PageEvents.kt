@@ -74,11 +74,15 @@ interface BrowseEvent {
     val onWillCheckDocumentState: WebPageWebDriverEventHandler
     @Deprecated("Inappropriate name", ReplaceWith("onDocumentActuallyReady"))
     val onDOMStateChecked: WebPageWebDriverEventHandler get() = onDocumentActuallyReady
+
     /**
      * Fire when the document is actually ready. The document state is checked(computed)
      * using an algorithm in javascript.
      * */
     val onDocumentActuallyReady: WebPageWebDriverEventHandler
+
+    val onWillScroll: WebPageWebDriverEventHandler
+    val onDidScroll: WebPageWebDriverEventHandler
 
     val onWillComputeFeature: WebPageWebDriverEventHandler
     val onFeatureComputed: WebPageWebDriverEventHandler
@@ -102,15 +106,15 @@ interface PageEvent {
     /**
      * The load phase event handler
      * */
-    val loadEvent: LoadEvent
+    var loadEvent: LoadEvent
     /**
      * The browse phase event handler
      * */
-    val browseEvent: BrowseEvent
+    var browseEvent: BrowseEvent
     /**
      * The crawl phase event handler
      * */
-    val crawlEvent: CrawlEvent
+    var crawlEvent: CrawlEvent
     /**
      * Chain the other page event handler to the tail of this one.
      * */
