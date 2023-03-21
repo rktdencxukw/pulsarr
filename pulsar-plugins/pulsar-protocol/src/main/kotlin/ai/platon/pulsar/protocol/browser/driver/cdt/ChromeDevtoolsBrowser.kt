@@ -71,6 +71,8 @@ class ChromeDevtoolsBrowser(
             throw WebDriverException("Failed to create chrome devtools driver | " + e.message)
         } catch (e: Exception) {
             logger.warn(e.stringify())
+            System.out.println("kcdebug. driver error")
+            System.out.println("kcdebug. driver error: " + e.stringify())
             throw WebDriverException("[Unexpected] Failed to create chrome devtools driver", e)
         }
     }
