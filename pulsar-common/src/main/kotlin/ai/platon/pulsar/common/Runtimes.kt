@@ -146,6 +146,7 @@ object Runtimes {
 object ProcessLauncher {
     private val log = LoggerFactory.getLogger(ProcessLauncher::class.java)
 
+    //kcread 启动入口2
     @Throws(IOException::class)
     fun launch(executable: String, args: List<String>): Process {
         val command = mutableListOf<String>().apply { add(executable); addAll(args) }

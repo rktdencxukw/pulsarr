@@ -76,5 +76,6 @@ if [[ "$RUN_AS_DAEMON" == "true" ]]; then
   exec "${EXEC_CALL[@]}" "$CLASS" "$@" >> "$logout" 2>&1 &
   echo $! > "$PID"
 else
+  echo "kcdebug. run command:" "${EXEC_CALL[@]}" "$CLASS" "$@"
   exec "${EXEC_CALL[@]}" "$CLASS" "$@"
 fi

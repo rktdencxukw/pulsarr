@@ -104,6 +104,7 @@ class MultiPrivacyContextManager(
     /**
      * Create a privacy context who is not added to the context list.
      * */
+    //kcread 启动入口1
     @Throws(ProxyException::class)
     override fun createUnmanagedContext(id: PrivacyContextId): BrowserPrivacyContext {
         val context = BrowserPrivacyContext(proxyPoolManager, driverPoolManager, coreMetrics, conf, id)

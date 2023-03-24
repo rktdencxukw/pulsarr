@@ -10,8 +10,14 @@ import ai.platon.pulsar.rest.api.common.XSQLScrapeHyperlink
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
 import ai.platon.pulsar.rest.api.entities.ScrapeStatusRequest
+import com.google.gson.Gson
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.TimeUnit
 
@@ -24,14 +30,25 @@ class ScrapeService(
     private val responseCache = ConcurrentSkipListMap<String, ScrapeResponse>()
     private val urlPool get() = globalCacheFactory.globalCache.urlPool
 
+    private val httpClient = HttpClient.newHttpClient()
+
     /**
      * Execute a scrape task and wait until the execution is done,
      * for test purpose only, no customer should access this api
      * */
+    //kcread 启动入口 提交任务。   // spring rest 是一个线程，成本有点高，应及时返回。
     fun executeQuery(request: ScrapeRequest): ScrapeResponse {
         val hyperlink = createScrapeHyperlink(request)
         urlPool.higher3Cache.reentrantQueue.add(hyperlink)
-        return hyperlink.get(3, TimeUnit.MINUTES)
+        // 可能跟complete函数不在同一个线程，不被执行
+//        hyperlink.whenComplete { scrapeResponse: ScrapeResponse, throwable: Throwable ->
+//            if (throwable != null) {
+//                logger.error(throwable.message, throwable)
+//            } else {
+//                logger.info("Scrape task completed: ${scrapeResponse.uuid}")
+//            }
+//        }
+        return  hyperlink.get(3, TimeUnit.MINUTES)
     }
 
     /**
@@ -39,9 +56,34 @@ class ScrapeService(
      * */
     fun submitJob(request: ScrapeRequest): String {
         val hyperlink = createScrapeHyperlink(request)
+//        if (!request.reportUrl.isNullOrEmpty()) {
+//            hyperlink.whenComplete { scrapeResponse: ScrapeResponse, throwable: Throwable ->
+//                if (throwable != null) {
+//                    logger.error(throwable.message, throwable)
+//                } else {
+//                    logger.info("Scrape task completed: ${scrapeResponse.uuid}")
+//                    val request = post(request.reportUrl, scrapeResponse)
+//                    try {
+//                        httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+//                    } catch (e: Exception) {
+//                        logger.error("failed to report scrape result:", e.message, e)
+//                    }
+//                }
+//            }
+//        }
         responseCache[hyperlink.uuid] = hyperlink.response
         urlPool.normalCache.reentrantQueue.add(hyperlink)
         return hyperlink.uuid
+    }
+
+    private fun post(url: String, requestEntity: Any): HttpRequest {
+        val requestBody = Gson().toJson(requestEntity)
+        return HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .timeout(Duration.ofMinutes(3))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+            .build()
     }
 
     /**

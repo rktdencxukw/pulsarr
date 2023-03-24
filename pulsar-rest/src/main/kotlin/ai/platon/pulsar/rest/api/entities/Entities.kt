@@ -5,9 +5,41 @@ import ai.platon.pulsar.persist.ProtocolStatus
 import ai.platon.pulsar.persist.metadata.ProtocolStatusCodes
 import java.time.Instant
 
-data class ScrapeRequest(
-    val sql: String,
-)
+class ScrapeRequest {
+    var sql: String
+    var authToken: String = ""
+    var priority: String = "HIGHER2"
+    var asap: Boolean = false
+    var reportUrl: String = ""
+
+    constructor(sql: String) {
+        this.sql = sql
+        this.authToken = ""
+        this.priority = "HIGHER2"
+        this.asap = false
+        this.reportUrl = ""
+    }
+    constructor(
+        sql: String,
+        authToken: String,
+        priority: String = "HIGHER2",
+        asap: Boolean = false,
+        reportUrl: String = ""
+    ) {
+        this.sql = sql
+        this.authToken = authToken
+        this.priority = priority
+        this.asap = asap
+        this.reportUrl = reportUrl
+    }
+}
+
+data class ScrapeRequestSubmitResponse (
+    var uuid: String? = null,
+    var code: Int = 0,
+    var errorMessage: String = ""
+) {
+}
 
 data class ScrapeResponse(
     var uuid: String? = null,

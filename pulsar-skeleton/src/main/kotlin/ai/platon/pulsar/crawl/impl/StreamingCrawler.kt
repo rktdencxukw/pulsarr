@@ -411,7 +411,7 @@ open class StreamingCrawler(
 
             try {
                 globalMetrics.tasks.mark()
-                runLoadTaskWithEventHandlers(url)
+                runLoadTaskWithEventHandlers(url) //kcread 启动入口0.1
             } finally {
                 lastActiveTime = Instant.now()
 

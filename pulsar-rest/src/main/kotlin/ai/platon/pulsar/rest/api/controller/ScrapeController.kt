@@ -3,6 +3,7 @@ package ai.platon.pulsar.rest.api.controller
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
 import ai.platon.pulsar.rest.api.entities.ScrapeStatusRequest
+import ai.platon.pulsar.rest.api.entities.ScrapeRequestSubmitResponse
 import ai.platon.pulsar.rest.api.service.ScrapeService
 import org.springframework.context.ApplicationContext
 import org.springframework.http.MediaType
@@ -13,7 +14,7 @@ import javax.servlet.http.HttpServletRequest
 @CrossOrigin
 @RequestMapping(
     "x",
-    consumes = [MediaType.TEXT_PLAIN_VALUE],
+    consumes = [MediaType.TEXT_PLAIN_VALUE, "${MediaType.TEXT_PLAIN_VALUE};charset=UTF-8", MediaType.APPLICATION_JSON_VALUE],
     produces = [MediaType.APPLICATION_JSON_VALUE]
 )
 class ScrapeController(
@@ -27,6 +28,12 @@ class ScrapeController(
     @PostMapping("e")
     fun execute(@RequestBody sql: String): ScrapeResponse {
         return scrapeService.executeQuery(ScrapeRequest(sql))
+    }
+
+    @PostMapping("e_json_async")
+    fun execute(@RequestBody scrapeRequest: ScrapeRequest): ScrapeRequestSubmitResponse {
+        val submit = scrapeService.submitJob(scrapeRequest)
+        return ScrapeRequestSubmitResponse(submit)
     }
 
     /**

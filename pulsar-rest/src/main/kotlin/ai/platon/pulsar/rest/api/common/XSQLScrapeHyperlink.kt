@@ -16,12 +16,21 @@ import ai.platon.pulsar.ql.ResultSets
 import ai.platon.pulsar.ql.h2.utils.ResultSetUtils
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
+import com.google.gson.Gson
+import org.apache.avro.util.internal.JacksonUtils
 import org.h2.jdbc.JdbcSQLException
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.sql.Connection
 import java.sql.ResultSet
+import java.time.Duration
 import java.time.Instant
 import java.util.*
 import kotlin.system.measureTimeMillis
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 
 class ScrapeLoadEvent(
     val hyperlink: XSQLScrapeHyperlink,
@@ -82,12 +91,38 @@ open class XSQLScrapeHyperlink(
         }
     }
 
+    //kcread 爬取完成会及时回调 complete
     open fun complete(page: WebPage) {
         response.uuid = uuid
         response.isDone = true
         response.finishTime = Instant.now()
 
         complete(response)
+
+        if (!request.reportUrl.isNullOrEmpty()) {
+            val httpClient = HttpClient.newHttpClient()
+            logger.info("Scrape task completed: ${response.uuid}")
+            val request = post(request.reportUrl, response)
+            try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (e: Exception) {
+                logger.error("failed to report scrape result:", e.message, e)
+            }
+        }
+    }
+
+    private fun post(url: String, requestEntity: Any): HttpRequest {
+//        val requestBody = Gson().toJson(requestEntity)
+        val objectMapper = ObjectMapper()
+        val m = JavaTimeModule()
+        objectMapper.registerModule(m);
+        val requestBody = objectMapper.writeValueAsString(requestEntity)
+        return HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .timeout(Duration.ofMinutes(3))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+            .build()
     }
 
     protected open fun doExtract(page: WebPage, document: FeaturedDocument): ResultSet {
