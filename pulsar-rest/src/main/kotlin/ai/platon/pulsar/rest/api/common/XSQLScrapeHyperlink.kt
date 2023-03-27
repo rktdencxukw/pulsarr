@@ -106,7 +106,7 @@ open class XSQLScrapeHyperlink(
             try {
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             } catch (e: Exception) {
-                logger.error("failed to report scrape result:", e.message, e)
+                logger.error("failed to report scrape result", e.message, e, response)
             }
         }
     }
@@ -119,7 +119,7 @@ open class XSQLScrapeHyperlink(
         val requestBody = objectMapper.writeValueAsString(requestEntity)
         return HttpRequest.newBuilder()
             .uri(URI.create(url))
-            .timeout(Duration.ofMinutes(3))
+            .timeout(Duration.ofSeconds(10))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(requestBody))
             .build()
