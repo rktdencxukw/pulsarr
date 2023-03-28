@@ -32,6 +32,19 @@ class ScrapeRequest {
         this.asap = asap
         this.reportUrl = reportUrl
     }
+
+    override fun toString(): String {
+        // use a StringBuilder to avoid creating a lot of String objects
+        val sb = StringBuilder()
+        sb.append("ScrapeRequest(")
+        sb.append("sql=").append(sql)
+        sb.append(", authToken=").append(authToken)
+        sb.append(", priority=").append(priority)
+        sb.append(", asap=").append(asap)
+        sb.append(", reportUrl=").append(reportUrl)
+        sb.append(")")
+        return sb.toString()
+    }
 }
 
 data class ScrapeRequestSubmitResponse (

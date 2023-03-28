@@ -31,6 +31,25 @@ import java.util.*
 import kotlin.system.measureTimeMillis
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.google.gson.annotations.SerializedName
+
+
+
+class Markdown(val content: String) {
+}
+class WeChatMarkdownMsg(val title: String, val content: String){
+    @SerializedName("msgtype")
+    val msgType = "markdown"
+    lateinit var markdown: Markdown
+    init {
+        val content = """
+           ${DateTimes.now()}\n
+           title: ${title}\n\n
+           content: $content
+       """
+        markdown = Markdown(content)
+    }
+}
 
 class ScrapeLoadEvent(
     val hyperlink: XSQLScrapeHyperlink,
@@ -100,13 +119,21 @@ open class XSQLScrapeHyperlink(
         complete(response)
 
         if (!request.reportUrl.isNullOrEmpty()) {
-            val httpClient = HttpClient.newHttpClient()
-            logger.info("Scrape task completed: ${response.uuid}")
-            val request = post(request.reportUrl, response)
             try {
+                val httpClient = HttpClient.newHttpClient()
+                logger.info("Scrape task completed: ${response.uuid}")
+                val request = post(request.reportUrl, response)
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             } catch (e: Exception) {
-                logger.error("failed to report scrape result", e.message, e, response)
+                logger.error("failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}", e, e.message, request, response)
+                var msg = WeChatMarkdownMsg("report failed", e.message.toString())
+                var gson = Gson()
+                val hc = HttpClient.newHttpClient()
+                val request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=5932e314-7ffe-47bd-a097-87e9a39af354"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(msg))).build()
+                hc.send(request, HttpResponse.BodyHandlers.ofString())
             }
         }
     }
