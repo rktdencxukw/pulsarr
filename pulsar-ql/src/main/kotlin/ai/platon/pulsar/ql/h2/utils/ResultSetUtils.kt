@@ -124,6 +124,7 @@ object ResultSetUtils {
                     Types.BOOLEAN -> sourceRs.getBoolean(i)
                     Types.FLOAT -> sourceRs.getFloat(i)
                     Types.INTEGER -> sourceRs.getInt(i)
+                    Types.ARRAY -> sourceRs.getArray(i)
                     else -> sourceRs.getString(i)
                 }
             }

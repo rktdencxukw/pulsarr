@@ -3,7 +3,6 @@ package ai.platon.pulsar.rest.api.common
 import ai.platon.pulsar.session.PulsarSession
 import ai.platon.pulsar.common.*
 import ai.platon.pulsar.common.PulsarParams.VAR_IS_SCRAPE
-import ai.platon.pulsar.common.persist.ext.loadEvent
 import ai.platon.pulsar.crawl.event.impl.DefaultLoadEvent
 import ai.platon.pulsar.crawl.event.impl.DefaultPageEvent
 import ai.platon.pulsar.crawl.PageEvent
@@ -17,7 +16,6 @@ import ai.platon.pulsar.ql.h2.utils.ResultSetUtils
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
 import com.google.gson.Gson
-import org.apache.avro.util.internal.JacksonUtils
 import org.h2.jdbc.JdbcSQLException
 import java.net.URI
 import java.net.http.HttpClient
@@ -30,17 +28,21 @@ import java.time.Instant
 import java.util.*
 import kotlin.system.measureTimeMillis
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.google.gson.annotations.SerializedName
-
+import org.h2.jdbc.JdbcArray
 
 
 class Markdown(val content: String) {
 }
-class WeChatMarkdownMsg(val title: String, val content: String){
+
+class WeChatMarkdownMsg(val title: String, val content: String) {
     @SerializedName("msgtype")
     val msgType = "markdown"
     lateinit var markdown: Markdown
+
     init {
         val content = """
            ${DateTimes.now()}\n
@@ -122,10 +124,16 @@ open class XSQLScrapeHyperlink(
             try {
                 val httpClient = HttpClient.newHttpClient()
                 logger.info("Scrape task completed: ${response.uuid}")
-                val request = post(request.reportUrl, response)
+                val request = createPostRequest(request.reportUrl, response)
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             } catch (e: Exception) {
-                logger.error("failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}", e, e.message, request, response)
+                logger.error(
+                    "failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}",
+                    e,
+                    e.message,
+                    request,
+                    response
+                )
                 var msg = WeChatMarkdownMsg("report failed", e.message.toString())
                 var gson = Gson()
                 val hc = HttpClient.newHttpClient()
@@ -138,11 +146,17 @@ open class XSQLScrapeHyperlink(
         }
     }
 
-    private fun post(url: String, requestEntity: Any): HttpRequest {
+    private fun createPostRequest(url: String, requestEntity: ScrapeResponse): HttpRequest {
 //        val requestBody = Gson().toJson(requestEntity)
         val objectMapper = ObjectMapper()
         val m = JavaTimeModule()
         objectMapper.registerModule(m);
+        val simpleModule = SimpleModule();
+        simpleModule.addSerializer(JdbcArray::class.java, JdbcArraySerializer());
+        objectMapper.registerModule(simpleModule);
+        objectMapper.configure(
+            SerializationFeature.FAIL_ON_EMPTY_BEANS, false
+        )
         val requestBody = objectMapper.writeValueAsString(requestEntity)
         return HttpRequest.newBuilder()
             .uri(URI.create(url))
@@ -215,3 +229,4 @@ open class XSQLScrapeHyperlink(
         return result ?: ResultSets.newResultSet()
     }
 }
+

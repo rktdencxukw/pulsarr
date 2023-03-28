@@ -88,6 +88,8 @@ public class PulsarDataTypesHandler implements CustomDataTypesHandler {
             return DOM_DATA_TYPE_ID;
         } else if (ValueURI.class.isAssignableFrom(x)) {
             return URI_DATA_TYPE_ID;
+        } else if (ValueArray.class == x) {
+            return Value.ARRAY;
         }
         return Value.JAVA_OBJECT;
     }
