@@ -78,6 +78,26 @@ class ScrapeLoadEvent(
     }
 }
 
+class ReportHttpClient {
+    companion object {
+        @JvmStatic
+        val instance: HttpClient = HttpClient.newHttpClient()
+    }
+}
+
+class ScrapeResponseObjectMapper {
+    companion object {
+        @JvmStatic
+        val instance: ObjectMapper = ObjectMapper().apply {
+            registerModule(JavaTimeModule())
+            registerModule(SimpleModule().apply {
+                addSerializer(JdbcArray::class.java, JdbcArraySerializer())
+            })
+            configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+        }
+    }
+}
+
 open class XSQLScrapeHyperlink(
     val request: ScrapeRequest,
     val sql: NormXSQL,
@@ -93,6 +113,7 @@ open class XSQLScrapeHyperlink(
     private val randomConnection get() = sqlContext.randomConnection
 
     val response = ScrapeResponse()
+    private val reportHttpClient = HttpClient.newHttpClient()
 
     override var args: String? = "-parse ${sql.args}"
     override var event: PageEvent = DefaultPageEvent(
@@ -122,10 +143,9 @@ open class XSQLScrapeHyperlink(
 
         if (!request.reportUrl.isNullOrEmpty()) {
             try {
-                val httpClient = HttpClient.newHttpClient()
                 logger.info("Scrape task completed: ${response.uuid}")
                 val request = createPostRequest(request.reportUrl, response)
-                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
             } catch (e: Exception) {
                 logger.error(
                     "failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}",
@@ -136,28 +156,17 @@ open class XSQLScrapeHyperlink(
                 )
                 var msg = WeChatMarkdownMsg("report failed", e.message.toString())
                 var gson = Gson()
-                val hc = HttpClient.newHttpClient()
                 val request = HttpRequest.newBuilder()
                     .uri(URI.create("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=5932e314-7ffe-47bd-a097-87e9a39af354"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(msg))).build()
-                hc.send(request, HttpResponse.BodyHandlers.ofString())
+                reportHttpClient.send(request, HttpResponse.BodyHandlers.ofString())
             }
         }
     }
 
     private fun createPostRequest(url: String, requestEntity: ScrapeResponse): HttpRequest {
-//        val requestBody = Gson().toJson(requestEntity)
-        val objectMapper = ObjectMapper()
-        val m = JavaTimeModule()
-        objectMapper.registerModule(m);
-        val simpleModule = SimpleModule();
-        simpleModule.addSerializer(JdbcArray::class.java, JdbcArraySerializer());
-        objectMapper.registerModule(simpleModule);
-        objectMapper.configure(
-            SerializationFeature.FAIL_ON_EMPTY_BEANS, false
-        )
-        val requestBody = objectMapper.writeValueAsString(requestEntity)
+        val requestBody = ScrapeResponseObjectMapper.instance.writeValueAsString(requestEntity)
         return HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(10))
