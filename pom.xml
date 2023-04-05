@@ -82,6 +82,7 @@
 
                 <module>pulsar-client</module>
                 <module>pulsar-app</module>
+                <module>pulsar-standalone</module>
             </modules>
         </profile>
 

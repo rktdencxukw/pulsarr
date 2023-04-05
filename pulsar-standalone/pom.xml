@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+
+	<parent>
+		<groupId>ai.platon.pulsar</groupId>
+		<artifactId>pulsar-app</artifactId>
+		<version>1.10.11-SNAPSHOT</version>
+	</parent>
+
+
+	<properties>
+		<project.build.output>/Users/kc/DC/event-drived-trade/crawl/pulsar/pulsar-standalone/target/</project.build.output>
+	</properties>
+
+
+	<artifactId>pulsar-standalone</artifactId>
+	<packaging>jar</packaging>
+	<name>Pulsar Standalone</name>
+	<description>The pulsar standalone</description>
+
+	<dependencies>
+
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.boot</groupId>-->
+<!--            <artifactId>spring-boot-starter-data-mongodb</artifactId>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>de.flapdoodle.embed</groupId>-->
+<!--            <artifactId>de.flapdoodle.embed.mongo</artifactId>-->
+<!--        </dependency>-->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>ai.platon.pulsar</groupId>
+			<artifactId>pulsar-all</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>ai.platon.pulsar</groupId>
+			<artifactId>pulsar-rest</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+			<version>${spring-boot.version}</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<defaultGoal>package</defaultGoal>
+
+		<plugins>
+			<plugin>
+				<groupId>org.jetbrains.kotlin</groupId>
+				<artifactId>kotlin-maven-plugin</artifactId>
+				<version>${kotlin.version}</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<version>3.1.1</version>
+			</plugin>
+			<plugin>
+
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>ai.platon.pulsar.standalone.starter.PulsarMasterKt</mainClass>
+					<executable>true</executable>
+<!--					<layout>ZIP</layout>-->
+<!--					<includes>-->
+<!--&lt;!&ndash;						<include>&ndash;&gt;-->
+
+<!--&lt;!&ndash;							<groupId>nothing</groupId>&ndash;&gt;-->
+<!--&lt;!&ndash;							<artifactId>nothing</artifactId>&ndash;&gt;-->
+<!--&lt;!&ndash;						</include>&ndash;&gt;-->
+<!--						<include>-->
+<!--							<groupId>ai.platon.pulsar</groupId>-->
+<!--							<artifactId>pulsar-beans</artifactId>-->
+<!--						</include>-->
+<!--						<include>-->
+<!--							<groupId>ai.platon.scent</groupId>-->
+<!--							<artifactId>scent-beans</artifactId>-->
+<!--						</include>-->
+<!--					</includes>-->
+					<!-- 放在 includes nothing 之后-->
+					<addResources>true</addResources>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- 依赖处理插件 -->
+<!--			<plugin>-->
+<!--				<groupId>org.apache.maven.plugins</groupId>-->
+<!--				<artifactId>maven-dependency-plugin</artifactId>-->
+<!--				<version>2.8</version>-->
+<!--				<executions>-->
+<!--					<execution>-->
+<!--						<id>copy</id>-->
+<!--						<phase>package</phase>-->
+<!--						<goals>-->
+<!--							<goal>copy-dependencies</goal>-->
+<!--						</goals>-->
+<!--						<configuration>-->
+<!--							<outputDirectory>${project.build.output}/lib</outputDirectory>-->
+<!--							<includeScope>compile</includeScope>-->
+<!--							<includeScope>runtime</includeScope>-->
+<!--						</configuration>-->
+<!--					</execution>-->
+<!--				</executions>-->
+<!--			</plugin>-->
+<!--			&lt;!&ndash; 用于复制指定的文件 &ndash;&gt;-->
+<!--			<plugin>-->
+<!--				<artifactId>maven-resources-plugin</artifactId>-->
+<!--				<executions>-->
+<!--					&lt;!&ndash; 复制配置文件 &ndash;&gt;-->
+<!--					<execution>-->
+<!--						<id>copy-resources</id>-->
+<!--						<phase>package</phase>-->
+<!--						<goals>-->
+<!--							<goal>copy-resources</goal>-->
+<!--						</goals>-->
+<!--						<configuration>-->
+<!--							<resources>-->
+<!--								<resource>-->
+<!--									<directory>src/main/resources</directory>-->
+<!--									<includes>-->
+<!--										<include>application*.properties</include>-->
+<!--										<include>logback*.xml</include>-->
+<!--									</includes>-->
+<!--								</resource>-->
+<!--							</resources>-->
+<!--							<outputDirectory>${project.build.directory}/resources</outputDirectory>-->
+<!--						</configuration>-->
+<!--					</execution>-->
+<!--				</executions>-->
+<!--			</plugin>-->
+		</plugins>
+	</build>
+</project>

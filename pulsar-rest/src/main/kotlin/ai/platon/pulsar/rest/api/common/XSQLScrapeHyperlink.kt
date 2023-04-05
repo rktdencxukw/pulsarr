@@ -15,6 +15,8 @@ import ai.platon.pulsar.ql.ResultSets
 import ai.platon.pulsar.ql.h2.utils.ResultSetUtils
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.google.gson.Gson
 import org.h2.jdbc.JdbcSQLException
 import java.net.URI
@@ -31,8 +33,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.datatype.jsr310.deser.InstantDeserializer
+import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer
 import com.google.gson.annotations.SerializedName
 import org.h2.jdbc.JdbcArray
+import java.text.SimpleDateFormat
+import java.time.format.DateTimeFormatter
 
 
 class Markdown(val content: String) {
@@ -68,7 +74,7 @@ class ScrapeLoadEvent(
         }
         onWillParseHTMLDocument.addLast { page ->
         }
-        onHTMLDocumentParsed.addLast { page, document ->
+        onHTMLDocumentParsed.addLast { page, document -> // kcread 完成回调 5
             require(page.hasVar(VAR_IS_SCRAPE))
             hyperlink.extract(page, document)
         }
@@ -85,15 +91,31 @@ class ReportHttpClient {
     }
 }
 
+
+private class MyInstantSerializer
+    : InstantSerializer(InstantSerializer.INSTANCE, false, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(TimeZone.getTimeZone("GMT+8:00").toZoneId()))
+private class MyInstantDeserializer
+    : InstantDeserializer<Instant>(InstantDeserializer.INSTANT, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(TimeZone.getTimeZone("GMT+8:00").toZoneId()))
+
+
 class ScrapeResponseObjectMapper {
     companion object {
         @JvmStatic
         val instance: ObjectMapper = ObjectMapper().apply {
-            registerModule(JavaTimeModule())
+            val jm = JavaTimeModule()
+            jm.addSerializer(Instant::class.java, MyInstantSerializer())
+            jm.addDeserializer(Instant::class.java, MyInstantDeserializer())
+            registerModule(jm)
             registerModule(SimpleModule().apply {
                 addSerializer(JdbcArray::class.java, JdbcArraySerializer())
             })
-            configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+            setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
+            configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+            configure(SerializationFeature.INDENT_OUTPUT, true);
+            configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+            configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            setTimeZone(TimeZone.getTimeZone("GMT+8:00"))
+            dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
         }
     }
 }
@@ -145,7 +167,11 @@ open class XSQLScrapeHyperlink(
             try {
                 logger.info("Scrape task completed: ${response.uuid}")
                 val request = createPostRequest(request.reportUrl, response)
-                ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
+                val response = ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
+                logger.debug("report scrape result: {}", response)
+                if (response.statusCode() != 200) {
+                    logger.error("report scrape result failed: {}", response)
+                }
             } catch (e: Exception) {
                 logger.error(
                     "failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}",

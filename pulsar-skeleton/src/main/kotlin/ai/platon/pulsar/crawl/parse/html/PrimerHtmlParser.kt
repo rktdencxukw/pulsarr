@@ -85,7 +85,7 @@ class PrimerHtmlParser(
      *
      * */
     private fun onHTMLDocumentParsed(page: WebPage, document: FeaturedDocument) {
-        try {
+        try {// kcread 完成回调 4.9
             page.loadEvent?.onHTMLDocumentParsed?.invoke(page, document)
         } catch (e: Throwable) {
             logger.warn("Failed to invoke onHTMLDocumentParsed | ${page.configuredUrl}", e)

@@ -212,7 +212,7 @@ class LoadComponent(
     private suspend fun loadDeferred1(normUrl: NormUrl, page: WebPage): WebPage {
         onWillLoad(normUrl, page)
 
-        fetchContentIfNecessaryDeferred(normUrl, page)
+        fetchContentIfNecessaryDeferred(normUrl, page) // kcread 获取页面
 
         onLoaded(page, normUrl)
 

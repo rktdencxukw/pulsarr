@@ -41,6 +41,9 @@ APP_OPTS=("${APP_OPTS[@]}" "-Dapp.tmp.dir=$APP_TMP_DIR")
 APP_OPTS=("${APP_OPTS[@]}" "-Dlogging.dir=$APP_LOG_DIR")
 APP_OPTS=("${APP_OPTS[@]}" "-Dlogging.file=$APP_LOGFILE")
 
+APP_OPTS=("${APP_OPTS[@]}" "-Dlogging.config=./pulsar-resources/src/main/resources/logback-dev-debug.xml")
+#APP_OPTS=("${APP_OPTS[@]}" "-Dspring.config.location=./pulsar-resources/src/main/resources/config/application.properties")
+
 export CLASSPATH
 if [[ $VERBOSE_LEVEL == "1" ]]; then
   echo "$CLASSPATH"
