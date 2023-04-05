@@ -138,6 +138,9 @@
         </profile>
         <profile>
             <id>separate-package</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <properties>
             </properties>
 
