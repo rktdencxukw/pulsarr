@@ -8,12 +8,11 @@
         <groupId>ai.platon.pulsar</groupId>
         <artifactId>pulsar-app</artifactId>
         <version>1.10.11-SNAPSHOT</version>
+        <relativePath>../pulsar-app</relativePath>
     </parent>
 
 
     <properties>
-        <project.build.output>/Users/kc/DC/event-drived-trade/crawl/pulsar/pulsar-standalone/target/
-        </project.build.output>
     </properties>
 
 
@@ -70,68 +69,72 @@
         <!--        </dependency>-->
     </dependencies>
 
-<!--    <build>-->
-<!--        <defaultGoal>package</defaultGoal>-->
+    <build>
+        <defaultGoal>package</defaultGoal>
 
-<!--        <plugins>-->
-<!--            <plugin>-->
-<!--                <groupId>org.jetbrains.kotlin</groupId>-->
-<!--                <artifactId>kotlin-maven-plugin</artifactId>-->
-<!--                <version>${kotlin.version}</version>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>compile</id>-->
-<!--                        <goals>-->
-<!--                            <goal>compile</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <sourceDirs>-->
-<!--                                <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>-->
-<!--                                <sourceDir>${project.basedir}/src/main/java</sourceDir>-->
-<!--                            </sourceDirs>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
-<!--                    <execution>-->
-<!--                        <id>test-compile</id>-->
-<!--                        <goals>-->
-<!--                            <goal>test-compile</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <sourceDirs>-->
-<!--                                <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>-->
-<!--                                <sourceDir>${project.basedir}/src/test/java</sourceDir>-->
-<!--                            </sourceDirs>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-<!--            <plugin>-->
-<!--                <groupId>org.apache.maven.plugins</groupId>-->
-<!--                <artifactId>maven-dependency-plugin</artifactId>-->
-<!--                <version>3.1.1</version>-->
-<!--            </plugin>-->
-<!--            <plugin>-->
-
-<!--                <groupId>org.springframework.boot</groupId>-->
-<!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
-<!--                <configuration>-->
-<!--                    <mainClass>ai.platon.pulsar.standalone.starter.PulsarMasterKt</mainClass>-->
-<!--                    <executable>true</executable>-->
-<!--                    <addResources>true</addResources>-->
-<!--                </configuration>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <goals>-->
-<!--                            <goal>repackage</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-<!--        </plugins>-->
-<!--    </build>-->
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>${kotlin.version}</version>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirs>
+                                <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
+                                <sourceDir>${project.basedir}/src/main/java</sourceDir>
+                            </sourceDirs>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>test-compile</id>
+                        <goals>
+                            <goal>test-compile</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirs>
+                                <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
+                                <sourceDir>${project.basedir}/src/test/java</sourceDir>
+                            </sourceDirs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
     <profiles>
         <profile>
         <id>integrate-package</id>
+            <build>
+                <finalName>${artifactId}-${project.version}-int</finalName>
+                <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.1.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <mainClass>ai.platon.pulsar.standalone.starter.PulsarMasterKt</mainClass>
+                        <executable>true</executable>
+                        <addResources>true</addResources>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>separate-package</id>
@@ -141,42 +144,6 @@
             <build>
                 <finalName>${artifactId}-${project.version}-sep</finalName>
                 <plugins>
-                    <plugin>
-                        <groupId>org.jetbrains.kotlin</groupId>
-                        <artifactId>kotlin-maven-plugin</artifactId>
-                        <version>${kotlin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>compile</id>
-                                <goals>
-                                    <goal>compile</goal>
-                                </goals>
-                                <configuration>
-                                    <sourceDirs>
-                                        <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
-                                        <sourceDir>${project.basedir}/src/main/java</sourceDir>
-                                    </sourceDirs>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>test-compile</id>
-                                <goals>
-                                    <goal>test-compile</goal>
-                                </goals>
-                                <configuration>
-                                    <sourceDirs>
-                                        <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
-                                        <sourceDir>${project.basedir}/src/test/java</sourceDir>
-                                    </sourceDirs>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <!--                    <plugin>-->
-                    <!--                        <groupId>org.apache.maven.plugins</groupId>-->
-                    <!--                        <artifactId>maven-dependency-plugin</artifactId>-->
-                    <!--                        <version>3.1.1</version>-->
-                    <!--                    </plugin>-->
                     <plugin>
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-maven-plugin</artifactId>
@@ -190,25 +157,9 @@
                                     <groupId>nothing</groupId>
                                     <artifactId>nothing</artifactId>
                                 </include>
-                                <!--						<include>-->
-                                <!--							<groupId>ai.platon.pulsar</groupId>-->
-                                <!--							<artifactId>pulsar-beans</artifactId>-->
-                                <!--						</include>-->
-                                <!--						<include>-->
-                                <!--							<groupId>ai.platon.scent</groupId>-->
-                                <!--							<artifactId>scent-beans</artifactId>-->
-                                <!--						</include>-->
                             </includes>
-                            <!-- 放在 includes nothing 之后-->
                             <addResources>true</addResources>
                         </configuration>
-                        <!--                        <executions>-->
-                        <!--                            <execution>-->
-                        <!--                                <goals>-->
-                        <!--                                    <goal>repackage</goal>-->
-                        <!--                                </goals>-->
-                        <!--                            </execution>-->
-                        <!--                        </executions>-->
                     </plugin>
                     <!-- 依赖处理插件 -->
                     <plugin>
@@ -223,11 +174,8 @@
                                     <goal>copy-dependencies</goal>
                                 </goals>
                                 <configuration>
-                                    <!--												<outputDirectory>${project.build.output}/lib</outputDirectory>-->
                                     <!--                            default ${project.build.directory}/dependency-->
-                                    <!--                                    <outputDirectory>target/lib2</outputDirectory>-->
                                     <includeScope>runtime</includeScope>
-                                    <!--												<includeScope>runtime</includeScope>-->
                                 </configuration>
                             </execution>
                         </executions>
