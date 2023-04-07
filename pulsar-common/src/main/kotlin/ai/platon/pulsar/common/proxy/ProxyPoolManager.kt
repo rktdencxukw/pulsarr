@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.streams.toList
 
 open class ProxyPoolManager(
         val proxyPool: ProxyPool,
@@ -158,7 +159,7 @@ open class ProxyPoolManager(
             DEFAULT_PROXY_PROVIDER_FILES.mapNotNull { it.takeIf { Files.exists(it) } }.forEach {
                 FileUtils.copyFileToDirectory(it.toFile(), AVAILABLE_PROVIDER_DIR.toFile())
             }
-            AVAILABLE_PROVIDER_DIR.mapNotNull { it.takeIf { Files.exists(it) } }.forEach { enableProvider(it) }
+            Files.list(AVAILABLE_PROVIDER_DIR).toList().mapNotNull { it.takeIf { Files.exists(it) } }.forEach { enableProvider(it) }
 
             return this
         }

@@ -32,7 +32,7 @@ class ScrapeController(
      * */
     @PostMapping("e")
     fun execute(@RequestBody sql: String): ScrapeResponse {
-        TODO("Not implemented yet, ScrapeResponse serialize will be a problem if not use ScrapeResponseObjectMapper")
+//        TODO("Not implemented yet, ScrapeResponse serialize will be a problem if not use ScrapeResponseObjectMapper")
         logger.debug("Execute sql: {}", sql)
         return scrapeService.executeQuery(ScrapeRequest(sql))
     }

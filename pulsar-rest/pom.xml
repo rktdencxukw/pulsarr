@@ -74,7 +74,7 @@
         </dependency>
         <dependency>
             <groupId>ai.platon.pulsar</groupId>
-            <artifactId>pulsar-ql</artifactId>
+            <artifactId>pulsar-ql_kc</artifactId>
         </dependency>
 
         <dependency>

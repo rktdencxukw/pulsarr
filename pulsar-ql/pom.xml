@@ -17,7 +17,7 @@
         <version>1.10.11-SNAPSHOT</version>
     </parent>
 
-    <artifactId>pulsar-ql</artifactId>
+    <artifactId>pulsar-ql_kc</artifactId>
     <name>Pulsar QL</name>
 
     <dependencies>
