@@ -191,7 +191,7 @@ open class InteractiveBrowserEmulator(
 
         try {
             checkState(task, driver)
-
+            // kcread 启动点。根据isResource判断是否渲染
             response = if (task.page.isResource) {
                 loadResourceWithoutRendering(navigateTask, driver)
             } else browseWithCancellationHandled(navigateTask, driver)
@@ -412,6 +412,14 @@ open class InteractiveBrowserEmulator(
             emit1(EmulateEvents.documentActuallyReady, page, driver)
         }
 
+        // add by kc
+        if (result.state.isContinue) {
+            if (!task.page.options.waitForSelector.isNullOrEmpty()){
+                logger.debug("wait for selector: {}, timeout: {}, task url: {}", task.page.options.waitForSelector, task.page.options.waitForTimeoutMillis, task.url)
+                waitForElement(task, listOf(task.page.options.waitForSelector), task.page.options.waitForTimeoutMillis, result)
+            }
+        }
+
         if (result.state.isContinue) {
             emit1(EmulateEvents.willScroll, page, driver)
 
@@ -534,23 +542,34 @@ open class InteractiveBrowserEmulator(
     }
 
     protected open suspend fun waitForElement(
-        interactTask: InteractTask, requiredElements: List<String>,
-    ) {
-        if (requiredElements.isNotEmpty()) {
-            return
+        interactTask: InteractTask, requiredElements: List<String>, timeoutMillis: Long, result: InteractResult
+    ): Long {
+        if (requiredElements.isEmpty()) {
+            return 0L
         }
 
         val expressions = requiredElements.map { "!!document.querySelector('$it')" }
-        var scrollCount = 0
+//        var scrollCount = 0
 
-        val delayMillis = interactTask.interactSettings.scrollInterval.toMillis()
+        val startTime = System.currentTimeMillis()
+        var elapsedTime = 0L
+//        val delayMillis = interactTask.interactSettings.scrollInterval.toMillis()
+        val delayMillis = 1000L
         var exists: Any? = null
-        while (scrollCount-- > 0 && (exists == null || exists == false)) {
+//        while (scrollCount-- > 0 && (exists == null || exists == false)) {
+        while (elapsedTime <= timeoutMillis && (exists == null || exists == false)) {
+            delay(delayMillis)
             counterJsWaits.inc()
             val verbose = false
             exists = expressions.all { expression -> true == evaluate(interactTask, expression, verbose) }
-            delay(delayMillis)
+            elapsedTime = System.currentTimeMillis() - startTime
         }
+        val rest = timeoutMillis - elapsedTime
+        if (rest < 0 || (exists == null || exists == false)) {
+            result.protocolStatus = ProtocolStatus.retry(RetryScope.PRIVACY, "Timeout to wait for element")
+            result.state = FlowState.BREAK
+        }
+        return rest
     }
 
     protected open suspend fun computeDocumentFeatures(interactTask: InteractTask, result: InteractResult) {

@@ -223,6 +223,21 @@ open class LoadOptions(
             description = "The selector specified element should have a non-blank text")
     var waitNonBlank: String = ""
 
+    @ApiPublic
+    @Parameter(names = ["-wfs", "-waitForSelector"],
+        description = "The selector specified element should appear")
+    var waitForSelector: String = ""
+
+    @ApiPublic
+    @Parameter(names = ["-wfsd", "-waitForSelectorDisappear"],
+        description = "The selector specified element should disappear")
+    var waitForSelectorDisappear: String = ""
+
+    @ApiPublic
+    @Parameter(names = ["-wftm", "-waitForTimeoutMillis"],
+        description = "The timeout of wait for appear or disappear")
+    var waitForTimeoutMillis: Long = 30000L
+
     /**
      * The selector specified element should have a non-blank text, the task should
      * be retried if the element's text content is empty or blank.
