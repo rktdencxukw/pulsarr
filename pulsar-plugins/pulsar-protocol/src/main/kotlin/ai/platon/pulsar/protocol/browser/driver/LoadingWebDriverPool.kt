@@ -288,6 +288,11 @@ class LoadingWebDriverPool constructor(
             Thread.currentThread().interrupt()
             logger.error("Unexpected interruption exception: {}", e)
             null
+        } catch (e:Throwable) {
+            logger.error("Unexpected exception: {}", e)
+            e.printStackTrace()
+            throw e
+            null
         } finally {
             _numWaitingTasks.decrementAndGet()
             lastActiveTime = Instant.now()
@@ -394,6 +399,7 @@ class LoadingWebDriverPool constructor(
         // val b = browserManager.launch(browserId, driverSettings, capabilities)
         // val driver = b.newDriver()
 
+        // kcread 启动浏览器，调用google-chrome 命令
         val driver = driverFactory.create(browserId, priority, volatileConfig, start = false)
         traceLogger.info("doCreateDriver 2")
         _browser = driver.browser
