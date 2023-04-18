@@ -131,7 +131,7 @@ open class FetchComponent(
             logger.warn(e.message)
             page.also { updateStatus(it, ProtocolStatus.STATUS_PROTO_NOT_FOUND, CrawlStatus.STATUS_UNFETCHED) }
         } finally {
-            onFetched(page)
+            onFetched(page) //kcread 这里开始解析？
         }
     }
 

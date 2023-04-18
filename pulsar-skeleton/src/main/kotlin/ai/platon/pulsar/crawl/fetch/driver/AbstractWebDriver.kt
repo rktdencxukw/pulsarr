@@ -1,6 +1,7 @@
 package ai.platon.pulsar.crawl.fetch.driver
 
 import ai.platon.pulsar.common.urls.UrlUtils
+import ai.platon.pulsar.crawl.signature.HttpsUrlValidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -224,6 +225,7 @@ abstract class AbstractWebDriver(
         return newSession(headers, cookies)
     }
 
+    // kcread 调用jsoup获取页面
     @Throws(IOException::class)
     override suspend fun loadResource(url: String): Connection.Response? {
         synchronized(jsoupCreateDestroyMonitor) {
@@ -233,6 +235,7 @@ abstract class AbstractWebDriver(
             }
         }
 
+        HttpsUrlValidator.retrieveResponseFromServer(url);
         val response = withContext(Dispatchers.IO) {
             jsoupSession?.newRequest()?.url(url)?.execute()
         }
@@ -292,6 +295,8 @@ abstract class AbstractWebDriver(
             if (u != null) {
                 session.proxy(u.host, u.port)
             }
+        } else {
+            throw IllegalStateException("Invalid proxy: $proxy")
         }
 
         return session

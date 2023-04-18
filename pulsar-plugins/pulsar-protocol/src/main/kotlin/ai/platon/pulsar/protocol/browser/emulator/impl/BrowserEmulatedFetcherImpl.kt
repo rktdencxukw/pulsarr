@@ -89,7 +89,7 @@ open class BrowserEmulatedFetcherImpl(
         if (driver != null) {
             return doFetch(task, driver).response
         }
-
+        // FIXME 非渲染类型的isResource任务也会启动chrome浏览器
         return privacyManager.run(task) { _, driver -> doFetch(task, driver) }.response
     }
 
