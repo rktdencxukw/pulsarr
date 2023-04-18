@@ -4,5 +4,6 @@
 		http://www.springframework.org/schema/beans/spring-beans.xsd" default-lazy-init="true">
 
     <import resource="classpath:/pulsar-beans/components-context.xml" />
+    <import resource="classpath:/pulsar-beans/common-context.xml" />
 
 </beans>

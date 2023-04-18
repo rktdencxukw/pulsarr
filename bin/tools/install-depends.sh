@@ -41,9 +41,9 @@ cd /tmp/ || exit
 start_dependent_daemon
 
 # find out chrome version
-#CHROME_VERSION="$(google-chrome -version | head -n1 | awk -F '[. ]' '{print $3}')"
+CHROME_VERSION="$(google-chrome -version | head -n1 | awk -F '[. ]' '{print $3}')"
 # for mac
-CHROME_VERSION="$(/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome -version | head -n1 | awk -F '[. ]' '{print $3}')"
+#CHROME_VERSION="$(/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome -version | head -n1 | awk -F '[. ]' '{print $3}')"
 
 if [[ "$CHROME_VERSION" == "" ]]; then
     install_chrome

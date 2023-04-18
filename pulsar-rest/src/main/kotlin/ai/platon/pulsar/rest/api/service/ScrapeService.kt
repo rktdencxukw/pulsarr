@@ -11,6 +11,9 @@ import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeResponse
 import ai.platon.pulsar.rest.api.entities.ScrapeStatusRequest
 import com.google.gson.Gson
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.net.URI
@@ -90,8 +93,19 @@ class ScrapeService(
      * Get the response
      * */
     fun getStatus(request: ScrapeStatusRequest): ScrapeResponse {
-        return responseCache.computeIfAbsent(request.uuid) {
+        val resp = responseCache.get(request.uuid)
+        return if (resp == null) {
             ScrapeResponse(request.uuid, ResourceStatus.SC_NOT_FOUND, ProtocolStatusCodes.NOT_FOUND)
+        } else {
+            if (resp.isDone) {
+                GlobalScope.launch {
+                    launch {
+                        delay(1000 * 60 * 5)
+                        responseCache.remove(request.uuid)
+                    }
+                }
+            }
+            resp;
         }
     }
 
@@ -103,5 +117,9 @@ class ScrapeService(
         } else {
             DegenerateXSQLScrapeHyperlink(request, session, globalCacheFactory)
         }
+    }
+
+    fun clean(uuid: String) {
+        responseCache.remove(uuid)
     }
 }

@@ -67,7 +67,7 @@ open class WebDriverFactory(
             val (browser, driver) = when (browserType) {
                 BrowserType.PULSAR_CHROME -> createChromeDevtoolsDriver(browserId, capabilities)
 //                BrowserType.PLAYWRIGHT_CHROME -> createPlaywrightDriver(browserInstanceId, capabilities)
-                BrowserType.MOCK_CHROME -> createMockChromeDevtoolsDriver(browserId, capabilities)
+                BrowserType.MOCK_CHROME -> createMockChromeDevtoolsDriver(browserId, capabilities) // kcread 有何作用？获取api json时？
                 else -> throw UnsupportedWebDriverException("Unsupported WebDriver: $browserType")
             }
 

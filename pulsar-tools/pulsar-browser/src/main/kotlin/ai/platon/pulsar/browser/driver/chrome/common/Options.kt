@@ -38,7 +38,7 @@ class ChromeOptions(
 //        @ChromeParameter("user-data-dir")
 //        var userDataDir: Path = AppPaths.CHROME_TMP_DIR,
     @ChromeParameter("proxy-server")
-    var proxyServer: String? = null,
+    var proxyServer: String? = null, //kcread 指定代理服务器
     @ChromeParameter("headless")
     var headless: Boolean = false,
     @ChromeParameter("incognito")
@@ -86,7 +86,10 @@ class ChromeOptions(
     @ChromeParameter("no-sandbox")
     var noSandbox: Boolean = false,
     @ChromeParameter("ignore-certificate-errors")
-    var ignoreCertificateErrors: Boolean = true,
+//    var ignoreCertificateErrors: Boolean = true, // 会导致不缓存js文件，https://cloud.tencent.com/developer/article/2245104?from=15425&areaSource=102001.1&traceId=IBYfMWjhkX2US971wVaQR
+    var ignoreCertificateErrors: Boolean = false,
+//    @ChromeParameter("auto-ssl-client-auth")
+//    var autoSslClientAuth: Boolean = true,
     /**
      * The origin for DevTools Websocket connections must now be specified explicitly from Chrome 111.
      * @see [fluidsonic's pull](https://github.com/kklisura/chrome-devtools-java-client/pull/85)

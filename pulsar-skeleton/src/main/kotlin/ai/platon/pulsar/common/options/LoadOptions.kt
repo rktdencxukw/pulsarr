@@ -547,6 +547,11 @@ open class LoadOptions(
     @Parameter(names = ["-v", "-version", "--version"], description = "The load option version")
     var version = "20220918"
 
+    // kc add
+    @Parameter(names = ["-proxyServer", "--proxy-server"], description = "Browser should use the proxy")
+    var proxyServer = ""
+
+
     /**
      * Get the corrected [outLinkSelector] or null. See [outLinkSelector] for more information.
      * */
@@ -709,6 +714,9 @@ open class LoadOptions(
         setEnum(CapabilityTypes.BROWSER_TYPE, browser)
         // incognito is not used since the browser is always running in temporary contexts
         setBoolean(CapabilityTypes.BROWSER_INCOGNITO, incognito)
+        if (proxyServer.isNullOrEmpty().not()) {
+            setStrings(CapabilityTypes.PROXY_SERVER, proxyServer)
+        }
     }
 
     /**

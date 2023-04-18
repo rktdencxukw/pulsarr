@@ -205,6 +205,7 @@ class LoadComponent(
     }
 
     private suspend fun loadDeferred0(normUrl: NormUrl): WebPage {
+        // kcread 初始化一个WebPage，获取到的内容会装进这个WebPage
         val page = createPageShell(normUrl)
         return loadDeferred1(normUrl, page)
     }
@@ -212,8 +213,8 @@ class LoadComponent(
     private suspend fun loadDeferred1(normUrl: NormUrl, page: WebPage): WebPage {
         onWillLoad(normUrl, page)
 
-        fetchContentIfNecessaryDeferred(normUrl, page) // kcread 获取页面
-
+        fetchContentIfNecessaryDeferred(normUrl, page) // kcread 爬取页面完成，获取sql查询内容。不是很确定 2023年04月08日
+	// kcread 解析获取到的内容，已经装填到WebPage
         onLoaded(page, normUrl)
 
         return page
@@ -234,6 +235,7 @@ class LoadComponent(
     /**
      * Create a page shell, the page shell is the process unit for most tasks.
      * */
+    // kcread 初始化一个WebPage, 会带上请求参数，后面内容会装进这个WebPage
     private fun createPageShell(normUrl: NormUrl): WebPage {
         val cachedPage = getCachedPageOrNull(normUrl)
         var page = FetchEntry.createPageShell(normUrl)
@@ -403,7 +405,7 @@ class LoadComponent(
 
     private fun getCachedPageOrNull(normUrl: NormUrl): WebPage? {
         val (url, options) = normUrl
-        if (options.refresh) {
+        if (options.refresh) { // kcread 若url带上 -refresh 则不使用缓存
             // refresh the page, do not take cached version
             return null
         }

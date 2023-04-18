@@ -200,6 +200,170 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>uml</id>
+            <modules>
+<!--                <module>pulsar-common</module>-->
+<!--                <module>pulsar-persist</module>-->
+<!--                <module>pulsar-third</module>-->
+                <module>pulsar-skeleton</module>
+<!--                <module>pulsar-resources</module>-->
+
+<!--                err-->
+<!--                <module>pulsar-dom</module>-->
+<!--                <module>pulsar-plugins</module>-->
+
+                <!--                err-->
+<!--                <module>pulsar-tools</module>-->
+
+<!--                <module>pulsar-ql-common</module>-->
+<!--                <module>pulsar-ql</module>-->
+
+<!--                <module>pulsar-all</module>-->
+
+<!--                <module>pulsar-spring-support</module>-->
+<!--                <module>pulsar-rest</module>-->
+
+<!--                <module>pulsar-client</module>-->
+<!--                <module>pulsar-app</module>-->
+            </modules>
+            <build>
+                <plugins>
+                    <!--  kotlin  -->
+                    <plugin>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-maven-plugin</artifactId>
+                        <version>${kotlin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>compile</id>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <sourceDirs>
+                                        <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
+                                        <sourceDir>${project.basedir}/src/main/java</sourceDir>
+                                    </sourceDirs>
+                                </configuration>
+                            </execution>
+                        </executions>
+
+                        <configuration>
+                            <args>
+                                <arg>-Xjsr305=strict</arg>
+                            </args>
+                            <compilerPlugins>
+                                <plugin>spring</plugin>
+                                <plugin>jpa</plugin>
+                                <plugin>all-open</plugin>
+                                <compilerPlugin>ksp</compilerPlugin>
+                            </compilerPlugins>
+                            <pluginOptions>
+                                <option>all-open:annotation=javax.persistence.Entity</option>
+                                <option>all-open:annotation=javax.persistence.Embeddable</option>
+                                <option>all-open:annotation=javax.persistence.MappedSuperclass</option>
+
+                                <!--                                <option>ksp:kotlinOutputDir=/my/output/dir</option>-->
+                                <option>ksp:apoption=umlName=Pulsarr</option>
+                                <option>ksp:apoption=ignorePackages=ai.platon.pulsar.persist.gora.generated</option> <!-- , 分格,  generated classes  -->
+                                <option>ksp:apoption=drawMethodsVisible=</option>
+                                <option>ksp:apoption=drawFieldsVisible=</option>
+                                <option>ksp:apoption=startFromSpecialAnnotation=true</option>
+                            </pluginOptions>
+                            <jvmTarget>${javac.target.version}</jvmTarget>
+                        </configuration>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.dyescape</groupId>
+                                <artifactId>kotlin-maven-symbol-processing</artifactId>
+                                <version>1.6.1-SNAPSHOT</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>com.kc</groupId>
+                                <artifactId>ksp-uml-diagram</artifactId>
+                                <version>1.0.0</version>
+                            </dependency>
+                            <!--  Required by spring  -->
+                            <dependency>
+                                <groupId>org.jetbrains.kotlin</groupId>
+                                <artifactId>kotlin-maven-allopen</artifactId>
+                                <version>${kotlin.version}</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.jetbrains.kotlin</groupId>
+                                <artifactId>kotlin-maven-noarg</artifactId>
+                                <version>${kotlin.version}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                    <!--  java  -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.8.1</version>
+                        <executions>
+                            <!--  Replacing default-compile as it is treated specially by maven  -->
+                            <execution>
+                                <id>default-compile</id>
+                                <phase>none</phase>
+                            </execution>
+                            <!--  Replacing default-testCompile as it is treated specially by maven  -->
+                            <execution>
+                                <id>default-testCompile</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>java-compile</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>java-test-compile</id>
+                                <phase>test-compile</phase>
+                                <goals>
+                                    <goal>testCompile</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <verbose>true</verbose>
+                            <fork>true</fork>
+                            <source>${javac.src.version}</source>
+                            <target>${javac.target.version}</target>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <configuration>
+                            <filesets>
+                                <fileset>
+                                    <directory>${basedir}/lib</directory>
+                                    <followSymlinks>false</followSymlinks>
+                                    <useDefaultExcludes>true</useDefaultExcludes>
+                                    <includes>
+                                        <include>*.*</include>
+                                    </includes>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${maven-exec-plugin.version}</version>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <version>${spring-boot.version}</version>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
     <build>
@@ -657,11 +821,32 @@
             <groupId>org.jetbrains.kotlinx</groupId>
             <artifactId>kotlinx-coroutines-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-annotation-processing-maven</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.kc</groupId>-->
+<!--            <artifactId>annotation-reporter-uml-diagram</artifactId>-->
+<!--            <version>1.0.0</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>com.kc</groupId>-->
+<!--            <artifactId>annotation-processor</artifactId>-->
+<!--            <version>1.0.0</version>-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>com.kc</groupId>
+            <artifactId>ksp-uml-diagram</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
     </dependencies>
 
     <properties>
-        <kotlin.version>1.5.32</kotlin.version>
+        <!--        <kotlin.version>1.5.32</kotlin.version>-->
+        <kotlin.version>1.8.0</kotlin.version>
         <kotlin.coroutine.version>1.6.4</kotlin.coroutine.version>
 <!--        <kotlin.version>1.6.20</kotlin.version>-->
         <pulsar-h2.version>1.4.196</pulsar-h2.version>

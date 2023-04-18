@@ -484,8 +484,9 @@ open class InteractiveBrowserEmulator(
                 }
             } else if (message == "timeout") {
                 // this will never happen since 1.10.0
-                logger.debug("Hit max round $maxRound to wait for document | {}", interactTask.url)
+                logger.warn("Hit max round $maxRound to wait for document | {}", interactTask.url)
             } else if (message is String && message.contains("chrome-error://")) {
+                logger.error("Chrome error page is loaded | {}, msg:{}", interactTask.url, message)
                 val browserError = responseHandler.createBrowserErrorResponse(message)
                 status = browserError.status
                 result.activeDOMMessage = browserError.activeDOMMessage

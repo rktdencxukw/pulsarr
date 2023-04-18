@@ -333,6 +333,8 @@ public interface CapabilityTypes {
     String PROXY_ENABLE_LOCAL_FORWARD_SERVER = "proxy.enable.local.forward.server";
     String PROXY_SERVER_BOSS_THREADS = "proxy.forward.server.boss.threads";
     String PROXY_SERVER_WORKER_THREADS = "proxy.forward.server.worker.threads";
+    String PROXY_SERVER = "proxy.server";
+
 
     /**
      * Network

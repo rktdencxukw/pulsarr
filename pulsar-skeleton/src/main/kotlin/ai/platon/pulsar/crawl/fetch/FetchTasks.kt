@@ -128,14 +128,23 @@ class FetchTask constructor(
             val priority = conf.getUint(CapabilityTypes.BROWSER_WEB_DRIVER_PRIORITY, 0)
             val browserType = conf.getEnum(CapabilityTypes.BROWSER_TYPE, BrowserType.PULSAR_CHROME)
             val fingerprint = Fingerprint(browserType)
+            if (conf.getStrings(CapabilityTypes.PROXY_SERVER).isNotEmpty()) {
+                fingerprint.proxyServer = conf.getStrings(CapabilityTypes.PROXY_SERVER).first()
+                println("kcdebug. proxy server: ${fingerprint.proxyServer}")
+            }
             return FetchTask(0, priority, page, fingerprint = fingerprint)
         }
 
+        // kcread 根据WebPage创建一个FetchTask, 里面可指定代理
         fun create(page: WebPage): FetchTask {
             val conf = page.conf
             val priority = conf.getUint(CapabilityTypes.BROWSER_WEB_DRIVER_PRIORITY, 0)
             val browserType = conf.getEnum(CapabilityTypes.BROWSER_TYPE, BrowserType.PULSAR_CHROME)
             val fingerprint = Fingerprint(browserType)
+            if (conf.getStrings(CapabilityTypes.PROXY_SERVER).isNotEmpty()) {
+                fingerprint.proxyServer = conf.getStrings(CapabilityTypes.PROXY_SERVER).first()
+                println("kcdebug. proxy server: ${fingerprint.proxyServer}")
+            }
             return FetchTask(0, priority, page, fingerprint = fingerprint)
         }
     }

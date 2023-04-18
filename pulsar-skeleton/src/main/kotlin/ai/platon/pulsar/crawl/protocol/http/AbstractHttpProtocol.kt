@@ -94,6 +94,7 @@ abstract class AbstractHttpProtocol: Protocol {
 
     override suspend fun getProtocolOutputDeferred(page: WebPage): ProtocolOutput {
         val startTime = Instant.now()
+        // kcread 获取http内容，默认调用浏览器。如果要使用非浏览器获取，这里扩展。
         val response = getResponseDeferred(page, false)
                 ?:return ProtocolOutput(ProtocolStatus.retry(RetryScope.CRAWL, "Null response from protocol"))
         setResponseTime(startTime, page, response)

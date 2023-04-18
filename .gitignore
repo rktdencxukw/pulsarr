@@ -97,3 +97,4 @@ derby.log
 *.trace.db
 /.idea/httpRequests/
 .flattened-pom.xml
+Reports/

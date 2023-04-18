@@ -164,29 +164,35 @@ open class XSQLScrapeHyperlink(
         complete(response)
 
         if (!request.reportUrl.isNullOrEmpty()) {
-            try {
-                logger.info("Scrape task completed: ${response.uuid}")
-                val request = createPostRequest(request.reportUrl, response)
-                val response = ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
-                logger.debug("report scrape result: {}", response)
-                if (response.statusCode() != 200) {
-                    logger.error("report scrape result failed: {}", response)
+            var tried = 0
+            while (++tried <= 3) {
+                try {
+                    logger.info("Scrape task completed: ${response.uuid}")
+                    val request = createPostRequest(request.reportUrl, response)
+                    val response = ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
+                    logger.debug("report scrape result: {}", response)
+                    if (response.statusCode() == 200) {
+                        break
+                    } else {
+                        logger.error("report scrape result failed: {}", response)
+                    }
+                } catch (e: Exception) {
+                    logger.error(
+                        "failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}",
+                        e,
+                        e.message,
+                        request,
+                        response
+                    )
+                    var msg = WeChatMarkdownMsg("report failed", e.message.toString())
+                    var gson = Gson()
+                    val request = HttpRequest.newBuilder()
+                        .uri(URI.create("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=5932e314-7ffe-47bd-a097-87e9a39af354"))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(msg))).build()
+                    reportHttpClient.send(request, HttpResponse.BodyHandlers.ofString())
                 }
-            } catch (e: Exception) {
-                logger.error(
-                    "failed to report scrape result. exception:{}, exception msg: {}, request:{}, response:{}",
-                    e,
-                    e.message,
-                    request,
-                    response
-                )
-                var msg = WeChatMarkdownMsg("report failed", e.message.toString())
-                var gson = Gson()
-                val request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=5932e314-7ffe-47bd-a097-87e9a39af354"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(msg))).build()
-                reportHttpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                sleep(Duration.ofSeconds(1))
             }
         }
     }

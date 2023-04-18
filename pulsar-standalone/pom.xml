@@ -108,31 +108,31 @@
     </build>
     <profiles>
         <profile>
-        <id>integrate-package</id>
+            <id>integrate-package</id>
             <build>
                 <finalName>${artifactId}-${project.version}-int</finalName>
                 <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.1.1</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-maven-plugin</artifactId>
-                    <configuration>
-                        <mainClass>ai.platon.pulsar.standalone.starter.PulsarMasterKt</mainClass>
-                        <executable>true</executable>
-                        <addResources>true</addResources>
-                    </configuration>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>repackage</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.1.1</version>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>ai.platon.pulsar.standalone.starter.PulsarMasterKt</mainClass>
+                            <executable>true</executable>
+                            <addResources>true</addResources>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>repackage</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -184,31 +184,33 @@
                         </executions>
                     </plugin>
                     <!--			&lt;!&ndash; 用于复制指定的文件 &ndash;&gt;-->
-                    <!--								<plugin>-->
-                    <!--									<artifactId>maven-resources-plugin</artifactId>-->
-                    <!--									<executions>-->
-                    <!--										&lt;!&ndash; 复制配置文件 &ndash;&gt;-->
-                    <!--										<execution>-->
-                    <!--											<id>copy-resources</id>-->
-                    <!--											<phase>package</phase>-->
-                    <!--											<goals>-->
-                    <!--												<goal>copy-resources</goal>-->
-                    <!--											</goals>-->
-                    <!--											<configuration>-->
-                    <!--												<resources>-->
-                    <!--													<resource>-->
-                    <!--														<directory>src/main/resources</directory>-->
-                    <!--														<includes>-->
-                    <!--															<include>application*.properties</include>-->
-                    <!--															<include>logback*.xml</include>-->
-                    <!--														</includes>-->
-                    <!--													</resource>-->
-                    <!--												</resources>-->
-                    <!--												<outputDirectory>${project.build.directory}/resources</outputDirectory>-->
-                    <!--											</configuration>-->
-                    <!--										</execution>-->
-                    <!--									</executions>-->
-                    <!--								</plugin>-->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <!-- 复制配置文件 -->
+                            <execution>
+                                <id>copy-resources</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <resources>
+                                        <resource>
+                                            <directory>src/main/resources</directory>
+                                            <includes>
+                                                <!--                                                <include>application*.properties</include>-->
+                                                <!--                                                <include>logback*.xml</include>-->
+                                                <include>*.xml</include>
+                                            </includes>
+                                        </resource>
+                                    </resources>
+                                    <outputDirectory>${project.build.directory}/resources</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>

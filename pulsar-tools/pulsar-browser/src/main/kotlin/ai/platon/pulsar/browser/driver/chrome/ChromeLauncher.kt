@@ -187,10 +187,15 @@ class ChromeLauncher(
         var port = 0
         val processOutput = StringBuilder()
         val readLineThread = Thread {
+            println("kcdebug: waitForDevToolsServer,  ${process}")
+            println("kcdebug: waitForDevToolsServer,  ${process.inputStream}")
             BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                 // Wait for DevTools listening line and extract port number.
                 var line: String
-                while (reader.readLine().also { line = it } != null) {
+                println("waitForDevToolsServer, reader: $reader")
+                logger.debug("waitForDevToolsServer, reader:{}", reader)
+                println("waitForDevToolsServer, reader line: ${reader.readLine()}")
+                while (reader.readLine().also { line = it } != null) { // FIXME kc 这里有时报null exception. reader?
                     logger.takeIf { line.isNotBlank() }?.info("[output] - $line")
                     val matcher = DEVTOOLS_LISTENING_LINE_PATTERN.matcher(line)
                     if (matcher.find()) {

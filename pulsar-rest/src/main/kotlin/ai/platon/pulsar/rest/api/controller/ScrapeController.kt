@@ -66,4 +66,11 @@ class ScrapeController(
         val request = ScrapeStatusRequest(uuid)
         return scrapeService.getStatus(request)
     }
+
+    @PostMapping("clean", consumes = [MediaType.ALL_VALUE])
+    fun clean(
+        @RequestParam uuid: String,
+    ) {
+        scrapeService.clean(uuid)
+    }
 }

@@ -4,6 +4,7 @@ import ai.platon.pulsar.common.collect.UrlFeeder
 import ai.platon.pulsar.common.config.CapabilityTypes.CRAWL_ENABLE_DEFAULT_DATA_COLLECTORS
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.urls.UrlAware
+import osp.leobert.android.diagram.notation.GenerateUMLDiagram
 import ai.platon.pulsar.context.PulsarContexts
 import ai.platon.pulsar.crawl.Crawler
 import kotlinx.coroutines.*
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 
+@GenerateUMLDiagram("StreamingCrawler")
 open class StreamingCrawlLoop(
     /**
      * The unmodified configuration load from file
@@ -75,6 +77,7 @@ open class StreamingCrawlLoop(
         logger.info("Registered {} link collectors | loop#{} @{}", urlFeeder.collectors.size, id, hashCode())
 
         val urls = urlFeeder.asSequence()
+        // kcread 启动入口 0.01 创建 StreamingCrawler, 代表一个循环线程
         _crawler = StreamingCrawler(urls, context.createSession(), noProxy = false)
 
         crawlJob = scope.launch {

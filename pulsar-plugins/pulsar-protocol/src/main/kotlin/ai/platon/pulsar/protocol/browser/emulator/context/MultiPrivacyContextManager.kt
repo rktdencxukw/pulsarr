@@ -104,7 +104,7 @@ class MultiPrivacyContextManager(
     /**
      * Create a privacy context who is not added to the context list.
      * */
-    //kcread 启动入口1
+    //kcread 启动入口1。 创建浏览器上下文，会多次进入这里，但不是每个任务都会进
     @Throws(ProxyException::class)
     override fun createUnmanagedContext(id: PrivacyContextId): BrowserPrivacyContext {
         val context = BrowserPrivacyContext(proxyPoolManager, driverPoolManager, coreMetrics, conf, id)
@@ -234,9 +234,15 @@ class MultiPrivacyContextManager(
         var n = activeContexts.size
 
         var pc = iterator.next()
+//        while (n-- > 0 && (pc.isFullCapacity || proxyServer != pc.id.fingerprint.proxyServer)) {
         while (n-- > 0 && pc.isFullCapacity) {
             pc = iterator.next()
         }
+
+        //double check
+//        if (proxyServer != pc.id.fingerprint.proxyServer) {
+//            throw IllegalStateException("No privacy context is available. " + proxyServer + " " + pc.id.fingerprint.proxyServer)
+//        }
 
         return pc
     }
@@ -390,7 +396,8 @@ class MultiPrivacyContextManager(
         val status = result.status
         if (warnings > 0) {
             val symbol = PopularEmoji.WARNING
-            logger.info(
+            // TODO 严重吗
+            logger.warn(
                 "$symbol Privacy leak warning {}/{} | {}#{} | {}. {}",
                 warnings, privacyContext.maximumWarnings,
                 privacyContext.sequence, privacyContext.display,

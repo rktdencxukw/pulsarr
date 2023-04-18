@@ -3,6 +3,8 @@ package ai.platon.pulsar.common
 import ai.platon.pulsar.common.config.AppConstants
 import ai.platon.pulsar.common.measure.ByteUnit
 import ai.platon.pulsar.common.measure.ByteUnitConverter
+import ai.platon.pulsar.persist.gora.GoraStorage.logger
+import org.slf4j.LoggerFactory
 import oshi.SystemInfo
 import oshi.hardware.CentralProcessor
 import java.time.Duration
@@ -12,10 +14,12 @@ import java.time.Instant
  * Application specific system information
  * */
 class AppSystemInfo {
+    private val logger = LoggerFactory.getLogger(this.javaClass)
+
     companion object {
         private var prevCPUTicks = LongArray(CentralProcessor.TickType.values().size)
 
-        var CRITICAL_CPU_THRESHOLD = System.getProperty("critical.cpu.threshold") ?.toDoubleOrNull() ?: 0.85
+        var CRITICAL_CPU_THRESHOLD = System.getProperty("critical.cpu.threshold")?.toDoubleOrNull() ?: 0.85
 
         val startTime = Instant.now()
         val elapsedTime get() = Duration.between(startTime, Instant.now())
@@ -30,7 +34,7 @@ class AppSystemInfo {
          * */
         val systemCpuLoad get() = computeSystemCpuLoad()
 
-        val isCriticalCPULoad get() = systemCpuLoad > CRITICAL_CPU_THRESHOLD
+        val isCriticalCPULoad get() = (systemCpuLoad > CRITICAL_CPU_THRESHOLD).also { if (it) logger.error("Critical CPU load: $systemCpuLoad") }
 
         /**
          * An array of the system load averages for 1, 5, and 15 minutes
@@ -71,7 +75,12 @@ class AppSystemInfo {
             else -> AppConstants.BROWSER_TAB_REQUIRED_MEMORY
         }
 
-        val isCriticalMemory get() = availableMemory < actualCriticalMemory
+        val isCriticalMemory
+            get() = (availableMemory < actualCriticalMemory).also { isCritical ->
+                if (isCritical) {
+                    logger.error("Available memory is low: ${ByteUnit.BYTE.toMiB(availableMemory.toDouble())} MiB")
+                }
+            }
 
         val freeDiskSpaces get() = Runtimes.unallocatedDiskSpaces()
 
@@ -81,7 +90,11 @@ class AppSystemInfo {
 
         private fun checkIsOutOfDisk(): Boolean {
             val freeSpace = freeDiskSpaces.maxOfOrNull { ByteUnitConverter.convert(it, "G") } ?: 0.0
-            return freeSpace < 10.0
+            return (freeSpace < 5.0).also {
+                if (it) {
+                    logger.error("Free disk space is low: $freeSpace GiB")
+                }
+            }
         }
 
         private fun computeSystemCpuLoad(): Double {

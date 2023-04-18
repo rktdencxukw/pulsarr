@@ -39,6 +39,7 @@ class LoadingWebDriverPool constructor(
     }
 
     private val logger = LoggerFactory.getLogger(LoadingWebDriverPool::class.java)
+    private val traceLogger = LoggerFactory.getLogger("com.kc.trace")
 
     val id = instanceSequencer.incrementAndGet()
 
@@ -86,6 +87,7 @@ class LoadingWebDriverPool constructor(
      * Number of drivers on standby.
      * */
     val numStandby get() = statefulDriverPool.standbyDrivers.size
+
     /**
      * Number of all possible working drivers
      * */
@@ -284,6 +286,7 @@ class LoadingWebDriverPool constructor(
             statefulDriverPool.poll(timeout, unit)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
+            logger.error("Unexpected interruption exception: {}", e)
             null
         } finally {
             _numWaitingTasks.decrementAndGet()
@@ -300,10 +303,13 @@ class LoadingWebDriverPool constructor(
     @Throws(BrowserLaunchException::class)
     private fun resourceSafeCreateDriverIfNecessary(priority: Int, volatileConfig: VolatileConfig) {
         synchronized(driverFactory) {
+            traceLogger.info("resourceSafeCreateDriverIfNecessary 1")
             if (!shouldCreateWebDriver()) {
+                traceLogger.info("resourceSafeCreateDriverIfNecessary 1.1")
                 return
             }
 
+            traceLogger.info("resourceSafeCreateDriverIfNecessary 2")
             createDriver(priority, volatileConfig)
         }
     }
@@ -312,8 +318,10 @@ class LoadingWebDriverPool constructor(
     private fun createDriver(priority: Int, volatileConfig: VolatileConfig) {
         try {
             // create a driver from remote unmanaged tabs, close unmanaged idle drivers, etc
+            traceLogger.info("createDriver 1")
             doCreateDriver(volatileConfig)
         } catch (e: BrowserLaunchException) {
+            traceLogger.info("createDriver 2")
             logger.debug("[Unexpected]", e)
 
             if (isActive) {
@@ -333,36 +341,66 @@ class LoadingWebDriverPool constructor(
         // Number of active drivers in this driver pool
         val activeDriversInPool = statefulDriverPool.workingDrivers.size + statefulDriverPool.standbyDrivers.size
         if (activeDriversInBrowser != activeDriversInPool) {
-            logger.warn("Inconsistent online driver status: {}/{}/{} (slots/activeP/activeB)",
-                numDriverSlots, activeDriversInPool, activeDriversInBrowser)
-        }
-
-        val isCriticalResources = AppSystemInfo.isCriticalResources
-        if (activeDriversInPool >= capacity) {
-            // should also: numDriverSlots > 0
-            logger.debug("Enough online drivers: {}/{}/{} (slots/activeP/activeB), will not create new one",
-                numDriverSlots, activeDriversInPool, activeDriversInBrowser)
-        } else if (AppSystemInfo.isCriticalMemory) {
-            logger.info("Critical memory: {}, {}/{}/{} (slots/activeP/activeB), will not create new driver",
-                Strings.compactFormat(AppSystemInfo.availableMemory),
+            logger.warn(
+                "Inconsistent online driver status: {}/{}/{} (slots/activeP/activeB)",
                 numDriverSlots, activeDriversInPool, activeDriversInBrowser
             )
         }
 
-        return isActive && !isCriticalResources && activeDriversInPool < capacity
+        var isCriticalResources = AppSystemInfo.isCriticalResources
+        if (activeDriversInPool >= capacity) {
+            // should also: numDriverSlots > 0
+            logger.debug(
+                "Enough online drivers: {}/{}/{} (slots/activeP/activeB), will not create new one",
+                numDriverSlots, activeDriversInPool, activeDriversInBrowser
+            )
+        } else if (AppSystemInfo.isCriticalMemory) {
+            logger.info(
+                "Critical memory: {}, {}/{}/{} (slots/activeP/activeB), will not create new driver",
+                Strings.compactFormat(AppSystemInfo.availableMemory),
+                numDriverSlots, activeDriversInPool, activeDriversInBrowser
+            )
+        }
+        for(i in 0..4) {
+            if (isCriticalResources) {
+                Thread.sleep(1000) // cpu load 有时瞬时升高
+                isCriticalResources = AppSystemInfo.isCriticalResources
+                logger.debug("tried {}, isCriticalResources: {}", i, isCriticalResources)
+            } else {
+                break
+            }
+        }
+
+        val res = isActive && !isCriticalResources && (activeDriversInPool < capacity)
+        logger.debug(
+            "shouldCreateWebDriver: {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            res,
+            isActive,
+            isCriticalResources,
+            AppSystemInfo.isCriticalResources,
+            AppSystemInfo.isCriticalDiskSpace,
+            AppSystemInfo.isCriticalMemory,
+            AppSystemInfo.isCriticalCPULoad,
+            activeDriversInPool,
+            capacity
+        )
+        return res
     }
 
     @Throws(BrowserLaunchException::class)
     private fun doCreateDriver(volatileConfig: VolatileConfig) {
+        traceLogger.info("doCreateDriver 1")
         // TODO: the code below might be better
         // val b = browserManager.launch(browserId, driverSettings, capabilities)
         // val driver = b.newDriver()
 
         val driver = driverFactory.create(browserId, priority, volatileConfig, start = false)
+        traceLogger.info("doCreateDriver 2")
         _browser = driver.browser
 
         _numCreatedDrivers.incrementAndGet()
         statefulDriverPool.offer(driver)
+        traceLogger.info("doCreateDriver 3")
 
         if (logger.isDebugEnabled) {
             logDriverOnline(driver)
@@ -371,8 +409,10 @@ class LoadingWebDriverPool constructor(
 
     private fun logDriverOnline(driver: WebDriver) {
         val driverSettings = driverFactory.driverSettings
-        logger.trace("The {}th web driver is active, browser: {} pageLoadStrategy: {} capacity: {}",
+        logger.trace(
+            "The {}th web driver is active, browser: {} pageLoadStrategy: {} capacity: {}",
             numActive, driver.name,
-            driverSettings.pageLoadStrategy, capacity)
+            driverSettings.pageLoadStrategy, capacity
+        )
     }
 }

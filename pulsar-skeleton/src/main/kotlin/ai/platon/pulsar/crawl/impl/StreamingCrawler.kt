@@ -26,6 +26,7 @@ import com.codahale.metrics.Gauge
 import kotlinx.coroutines.*
 import org.apache.commons.lang3.RandomStringUtils
 import org.apache.commons.lang3.SystemUtils
+import osp.leobert.android.diagram.notation.GenerateUMLDiagram
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
@@ -65,6 +66,7 @@ private enum class CriticalWarning(val message: String) {
     WRONG_DISTRICT("WRONG DISTRICT! ALL RESIDENT TASKS ARE PAUSED"),
 }
 
+@GenerateUMLDiagram("StreamingCrawler")
 open class StreamingCrawler(
     /**
      * The url sequence
@@ -269,6 +271,7 @@ open class StreamingCrawler(
         while (isActive) {
             checkEmptyUrlSequence(++idleSeconds)
 
+            // kcread 启动入口 0.09，循环线程获取任务并启动
             urls.forEachIndexed { j, url ->
                 idleSeconds = 0
                 globalTasks.incrementAndGet()
@@ -552,6 +555,7 @@ open class StreamingCrawler(
 
     @Throws(Exception::class)
     private suspend fun loadWithMinorExceptionHandled(url: UrlAware): WebPage? {
+        //kcread 启动入口0.2 根据url参数创建LoadOptions
         val options = session.options(url.args ?: "")
         if (options.isDead()) {
             // The url is dead, drop the task

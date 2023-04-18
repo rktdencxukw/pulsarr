@@ -157,6 +157,7 @@ class AppMetrics(
     }
 
     fun start() {
+        println("kcdebug 2, metrics enabled: $isEnabled")
         if (isEnabled) {
             // jmxReporter.start()
             // csvReporter.start(initialDelay.seconds, csvReportInterval.seconds, TimeUnit.SECONDS)
@@ -174,6 +175,8 @@ class AppMetrics(
 
             delay = Duration.between(now, now.plusDays(1).truncatedTo(ChronoUnit.DAYS))
             dailyTimer.scheduleAtFixedRate(delay, Duration.ofDays(1)) { reg.resetDailyCounters() }
+            logger.info("AppMetrics started")
+            println("AppMetrics started")
         }
     }
 

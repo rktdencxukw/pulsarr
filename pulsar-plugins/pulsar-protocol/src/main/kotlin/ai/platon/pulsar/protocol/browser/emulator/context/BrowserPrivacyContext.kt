@@ -143,6 +143,7 @@ open class BrowserPrivacyContext constructor(
         }
     }
 
+    // kcread 添加浏览器代理
     private fun createProxyContext(proxyPoolManager: ProxyPoolManager) {
         try {
             val pc = ProxyContext.create(id, driverContext, proxyPoolManager, conf)

@@ -58,11 +58,11 @@ data class PrivacyAgent(
 
         return other is PrivacyAgent
                 && other.contextDir == contextDir
-                && other.browserType.name == browserType.name
+                && other.browserType.name == browserType.name && other.fingerprint.proxyServer == other.fingerprint.proxyServer
     }
 
     override fun hashCode(): Int {
-        return 31 * contextDir.hashCode() + browserType.name.hashCode()
+        return 31 * contextDir.hashCode() + browserType.name.hashCode() + fingerprint.proxyServer.hashCode()
     }
 
     override fun compareTo(other: PrivacyAgent): Int {
@@ -71,7 +71,22 @@ data class PrivacyAgent(
             return r
         }
 //        return fingerprint.compareTo(other.fingerprint)
-        return browserType.name.compareTo(other.browserType.name)
+        val r2 = browserType.name.compareTo(other.browserType.name)
+        if (r2 != 0) {
+            return r2
+        }
+
+        return if (fingerprint.proxyServer == null) {
+            if (other.fingerprint.proxyServer == null) {
+                0
+            } else {
+                -1
+            }
+        } else if (other.fingerprint.proxyServer == null) {
+            1
+        } else {
+            fingerprint.proxyServer!!.compareTo(other.fingerprint.proxyServer!!)
+        }
     }
 
 //    override fun toString() = /** AUTO GENERATED **/
