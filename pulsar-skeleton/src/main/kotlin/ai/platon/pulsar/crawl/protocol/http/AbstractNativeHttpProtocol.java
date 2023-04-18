@@ -76,8 +76,9 @@ public abstract class AbstractNativeHttpProtocol extends AbstractHttpProtocol {
     /**
      * The AppConstants 'User-Agent' request header
      */
-    protected String userAgent = NetUtil.getAgentString("Pulsar", null, "AppConstants",
-            "http://pulsar.platon.ai/bot.html", "agent@pulsar.platon.ai");
+//    protected String userAgent = NetUtil.getAgentString("Pulsar", null, "AppConstants",
+//            "http://pulsar.platon.ai/bot.html", "agent@pulsar.platon.ai");
+    protected String userAgent = "";
     /**
      * The "Accept-Language" request header value.
      */

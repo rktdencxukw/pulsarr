@@ -31,7 +31,8 @@ public enum FetchMode {
         try {
             return FetchMode.valueOf(s.toUpperCase());
         } catch (Throwable e) {
-            return UNKNOWN;
+            throw new IllegalArgumentException("Invalid fetch mode: " + s);
+//            return UNKNOWN;
         }
     }
 }

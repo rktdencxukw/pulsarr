@@ -43,7 +43,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 
-abstract class AbstractHttpProtocol: Protocol {
+abstract class AbstractHttpProtocol : Protocol {
     private val log = LoggerFactory.getLogger(AbstractHttpProtocol::class.java)
     protected val closed = AtomicBoolean()
 
@@ -54,6 +54,7 @@ abstract class AbstractHttpProtocol: Protocol {
      * The max retry time
      */
     private var fetchMaxRetry = 3
+
     /**
      * The configuration
      */
@@ -78,9 +79,11 @@ abstract class AbstractHttpProtocol: Protocol {
 
     override fun getResponses(pages: Collection<WebPage>, volatileConfig: VolatileConfig): Collection<Response> {
         return pages.takeIf { isActive }
-                ?.mapNotNull { it.runCatching { getResponse(it, false) }
-                        .onFailure { log.warn(it.message) }.getOrNull() }
-                ?: listOf()
+            ?.mapNotNull {
+                it.runCatching { getResponse(it, false) }
+                    .onFailure { log.warn(it.message) }.getOrNull()
+            }
+            ?: listOf()
     }
 
     override fun getProtocolOutput(page: WebPage): ProtocolOutput {
@@ -96,7 +99,7 @@ abstract class AbstractHttpProtocol: Protocol {
         val startTime = Instant.now()
         // kcread 获取http内容，默认调用浏览器。如果要使用非浏览器获取，这里扩展。
         val response = getResponseDeferred(page, false)
-                ?:return ProtocolOutput(ProtocolStatus.retry(RetryScope.CRAWL, "Null response from protocol"))
+            ?: return ProtocolOutput(ProtocolStatus.retry(RetryScope.CRAWL, "Null response from protocol"))
         setResponseTime(startTime, page, response)
         return getOutputWithHttpCodeTranslated(page.url, response)
     }
@@ -169,7 +172,7 @@ abstract class AbstractHttpProtocol: Protocol {
             in 300..399 -> {
                 // handle redirect
                 // some broken servers, such as MS IIS, use lowercase header name...
-                val redirect = response.getHeader("Location")?:response.getHeader("location")?:""
+                val redirect = response.getHeader("Location") ?: response.getHeader("location") ?: ""
                 u = URL(u, redirect)
                 finalProtocolStatus.args[ProtocolStatus.ARG_REDIRECT_TO_URL] = u.toString()
             }
@@ -189,18 +192,20 @@ abstract class AbstractHttpProtocol: Protocol {
             is UnknownHostException -> ProtocolStatus.UNKNOWN_HOST
             else -> ProtocolStatus.EXCEPTION
         }
-        val protocolStatus = ProtocolStatus.failed(code,
-                "exception", lastThrowable,
-                "retry", tryCount,
-                "maxRetry", maxRry)
+        val protocolStatus = ProtocolStatus.failed(
+            code,
+            "exception", lastThrowable,
+            "retry", tryCount,
+            "maxRetry", maxRry
+        )
         return ProtocolOutput(null, MultiMetadata(), protocolStatus)
     }
 
     private fun setResponseTime(startTime: Instant, page: WebPage, response: Response) {
         val pageFetchMode = page.fetchMode
         val elapsedTime = if (pageFetchMode == FetchMode.BROWSER) {
-            val requestTime = response.getHeader(HttpHeaders.Q_REQUEST_TIME)?.toLongOrNull()?:-1
-            val responseTime = response.getHeader(HttpHeaders.Q_RESPONSE_TIME)?.toLongOrNull()?:-1
+            val requestTime = response.getHeader(HttpHeaders.Q_REQUEST_TIME)?.toLongOrNull() ?: -1
+            val responseTime = response.getHeader(HttpHeaders.Q_RESPONSE_TIME)?.toLongOrNull() ?: -1
             if (requestTime > 0 && responseTime > 0) {
                 Duration.ofMillis(responseTime - requestTime)
             } else {
