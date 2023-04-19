@@ -8,6 +8,7 @@ import ai.platon.pulsar.common.sleepSeconds
 import ai.platon.pulsar.common.urls.NormUrl
 import ai.platon.pulsar.common.urls.UrlUtils
 import ai.platon.pulsar.crawl.common.url.CompletableListenableHyperlink
+import ai.platon.pulsar.crawl.parse.json.JsonParser
 import ai.platon.pulsar.dom.FeaturedDocument
 import ai.platon.pulsar.dom.features.FeatureRegistry.registeredFeatures
 import ai.platon.pulsar.dom.features.NodeFeature.Companion.isFloating
@@ -20,6 +21,8 @@ import ai.platon.pulsar.persist.model.WebPageFormatter
 import ai.platon.pulsar.ql.ResultSets
 import ai.platon.pulsar.ql.types.ValueDom
 import ai.platon.pulsar.session.PulsarSession
+import com.jayway.jsonpath.DocumentContext
+import com.jayway.jsonpath.JsonPath
 import org.apache.commons.math3.linear.RealVector
 import org.h2.api.ErrorCode
 import org.h2.message.DbException
@@ -60,10 +63,12 @@ object Queries {
                 pages = ArrayList()
                 pages.add(session.load(normUrl))
             }
+
             is ValueArray ->
                 if (urls.list.isNotEmpty()) {
                     pages = session.loadAll(urls.list.mapTo(mutableSetOf()) { it.string })
                 }
+
             else -> throw DbException.get(ErrorCode.METHOD_NOT_FOUND_1, "Unsupported type ${Value::class}")
         }
 
@@ -94,6 +99,7 @@ object Queries {
                 val doc = session.loadDocument(configuredUrls.string)
                 collection = transformer(doc.document, restrictCss, offset, limit)
             }
+
             is ValueArray -> {
                 collection = ArrayList()
                 for (configuredUrl in configuredUrls.list) {
@@ -101,6 +107,7 @@ object Queries {
                     collection.addAll(transformer(doc.document, restrictCss, offset, limit))
                 }
             }
+
             else -> throw DbException.get(ErrorCode.FUNCTION_NOT_FOUND_1, "Unknown custom type")
         }
 
@@ -119,7 +126,8 @@ object Queries {
         val limit2 = min(limit, normUrl.options.topLinks)
 
         val document = session.loadDocument(normUrl)
-        var links = transformer(document.document, restrictCss, offset, Int.MAX_VALUE).filter { !UrlUtils.isInternal(it) }
+        var links =
+            transformer(document.document, restrictCss, offset, Int.MAX_VALUE).filter { !UrlUtils.isInternal(it) }
 
         if (normalize) {
             links = links.mapNotNull { session.normalizeOrNull(it)?.spec }
@@ -159,7 +167,11 @@ object Queries {
     /**
      * Load all pages specified by [normUrls], wait until all pages are loaded or timeout
      * */
-    private fun loadAll2(session: PulsarSession, normUrls: Iterable<NormUrl>, options: LoadOptions): Collection<WebPage> {
+    private fun loadAll2(
+        session: PulsarSession,
+        normUrls: Iterable<NormUrl>,
+        options: LoadOptions
+    ): Collection<WebPage> {
         val globalCache = session.globalCache
         val queue = globalCache.urlPool.higher3Cache.reentrantQueue
         val timeoutSeconds = options.pageLoadTimeout.seconds + 1
@@ -170,8 +182,10 @@ object Queries {
             .toList()
 
         queue.addAll(links)
-        logger.info("Waiting for {} completable hyperlinks, {}@{}, {}", links.size,
-            globalCache.javaClass, globalCache.hashCode(), globalCache.urlPool.hashCode())
+        logger.info(
+            "Waiting for {} completable hyperlinks, {}@{}, {}", links.size,
+            globalCache.javaClass, globalCache.hashCode(), globalCache.urlPool.hashCode()
+        )
 
         var i = 90
         val pendingLinks = links.toMutableList()
@@ -270,6 +284,23 @@ object Queries {
 
         val docDOM = ValueDom.get(document)
         elements.forEach { rs.addRow(it, docDOM) }
+
+        return rs
+    }
+
+    fun toJsonResultSet(document: DocumentContext?): ResultSet {
+        val rs = ResultSets.newSimpleResultSet()
+        // TODO 有啥用？
+        val colType = ValueDom.type
+        val sqlType = DataType.convertTypeToSQLType(colType)
+        rs.addColumn("JSON", sqlType, 0, 0)
+        rs.addColumn("DOC", sqlType, 0, 0)
+        if (document == null) {
+            val d = JsonPath.parse("{}")
+            rs.addRow(d, d)
+        } else {
+            rs.addRow(document, document)
+        }
 
         return rs
     }

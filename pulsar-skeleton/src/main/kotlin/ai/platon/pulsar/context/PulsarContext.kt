@@ -12,6 +12,7 @@ import ai.platon.pulsar.dom.FeaturedDocument
 import ai.platon.pulsar.persist.WebPage
 import ai.platon.pulsar.persist.gora.generated.GWebPage
 import ai.platon.pulsar.session.PulsarSession
+import com.jayway.jsonpath.DocumentContext
 import org.springframework.beans.BeansException
 import java.net.URL
 import java.util.concurrent.CompletableFuture
@@ -281,6 +282,7 @@ interface PulsarContext: AutoCloseable {
      * Parse the WebPage using ParseComponent
      */
     fun parse(page: WebPage): FeaturedDocument?
+    fun parseJson(page: WebPage): DocumentContext?
 
     /**
      * Persist the webpage into the storage immediately.

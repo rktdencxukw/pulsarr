@@ -21,6 +21,8 @@ import ai.platon.pulsar.persist.gora.generated.GWebPage
 import ai.platon.pulsar.session.AbstractPulsarSession
 import ai.platon.pulsar.session.PulsarEnvironment
 import ai.platon.pulsar.session.PulsarSession
+import com.jayway.jsonpath.DocumentContext
+import com.jayway.jsonpath.JsonPath
 import org.slf4j.LoggerFactory
 import org.springframework.beans.BeansException
 import org.springframework.context.support.AbstractApplicationContext
@@ -382,6 +384,12 @@ abstract class AbstractPulsarContext(
     override fun parse(page: WebPage): FeaturedDocument? {
         val parser = loadComponentOrNull?.parseComponent
         return parser?.parse(page, noLinkFilter = true)?.document
+    }
+
+    override fun parseJson(page: WebPage): DocumentContext? {
+//        val parser = loadComponentOrNull?.parseComponent
+//        return parser?.parse(page, noLinkFilter = true)?.document
+        return JsonPath.parse(page.contentAsString)
     }
 
     /**

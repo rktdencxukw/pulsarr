@@ -18,6 +18,7 @@ import ai.platon.pulsar.ql.h2.domValue
 import ai.platon.pulsar.ql.types.ValueDom
 import ai.platon.pulsar.ql.annotation.H2Context
 import ai.platon.pulsar.ql.h2.Queries.toDOMResultSet
+import ai.platon.pulsar.ql.h2.Queries.toJsonResultSet
 import org.h2.jdbc.JdbcConnection
 import org.h2.tools.SimpleResultSet
 import org.h2.value.DataType
@@ -66,6 +67,23 @@ object DomFunctionTables {
         val document = session.loadDocument(url)
         val elements = document.select(cssQuery, offset, limit) //kcread extract phase. 将 jsoup document 转为 JDBC ResultSet
         return toDOMResultSet(document, elements.map { domValue(it) })
+    }
+
+    @UDFunction(hasShortcut = true, description = "Load a page and select the specified element by jsonPath")
+    @JvmStatic
+    @JvmOverloads
+    fun loadAndSelectJson(
+        @H2Context conn: JdbcConnection,
+        url: String, jsonPathQuery: String, offset: Int = 1, limit: Int = Integer.MAX_VALUE): ResultSet {
+        val session = H2SessionFactory.getSession(conn)
+        if (session.isColumnRetrieval(conn)) {
+//            return toDOMResultSet(FeaturedDocument.NIL, listOf())
+            return toJsonResultSet(null)
+        }
+
+        val document = session.loadJson(url) ?: return ResultSets.newSimpleResultSet()
+//        val elements = document.select(jsonPathQuery, offset, limit)
+        return toJsonResultSet(document)
     }
 
     @JvmStatic

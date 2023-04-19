@@ -16,6 +16,7 @@ import ai.platon.pulsar.dom.FeaturedDocument
 import ai.platon.pulsar.dom.select.firstTextOrNull
 import ai.platon.pulsar.dom.select.selectFirstOrNull
 import ai.platon.pulsar.persist.WebPage
+import com.jayway.jsonpath.DocumentContext
 import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -299,6 +300,10 @@ abstract class AbstractPulsarSession(
     override fun parse(page: WebPage, noCache: Boolean) = parse0(page, noCache)
 
     override fun loadDocument(url: String) = parse(load(url))
+    override fun loadJson(url: String) : DocumentContext? {
+        val page = load(url)
+        return context.parseJson(page)
+    }
 
     override fun loadDocument(url: String, args: String) = parse(load(url, args))
 

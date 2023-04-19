@@ -54,6 +54,15 @@
             <groupId>ai.platon.pulsar</groupId>
             <artifactId>pulsar-ql-common</artifactId>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>ai.platon.pulsar</groupId>-->
+<!--            <artifactId>pulsar-parse</artifactId>-->
+<!--            <version>1.10.11-SNAPSHOT</version> &lt;!&ndash; not know why need &ndash;&gt;-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+        </dependency>
 
         <!-- apache common -->
         <dependency>

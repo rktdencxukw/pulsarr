@@ -74,7 +74,7 @@ class ScrapeLoadEvent(
         }
         onWillParseHTMLDocument.addLast { page ->
         }
-        onHTMLDocumentParsed.addLast { page, document -> // kcread 完成回调 5. parsed，准备执行xql抽取。extract阶段会再次通过http获取页面，如果有缓存可能不会？
+        onHTMLDocumentParsed.addLast { page, document -> // kcread 完成回调 5. parsed，准备执行xql抽取。extract阶段会再次通过http获取页面，因为sql语句用了load_and_xxx。
             require(page.hasVar(VAR_IS_SCRAPE))
             hyperlink.extract(page, document)
         }
@@ -144,7 +144,7 @@ open class XSQLScrapeHyperlink(
 
     open fun executeQuery(): ResultSet = executeQuery(request, response)
 
-    open fun extract(page: WebPage, document: FeaturedDocument) {
+    open fun extract(page: WebPage, document: FeaturedDocument) { // kcread 注册为onHTMLDocumentParsed处理函数
         try {
             response.pageContentBytes = page.contentLength.toInt()
             response.pageStatusCode = page.protocolStatus.minorCode

@@ -22,6 +22,7 @@ import ai.platon.pulsar.common.MimeTypeResolver
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.config.Params
 import ai.platon.pulsar.crawl.parse.html.PrimerHtmlParser
+import ai.platon.pulsar.crawl.parse.json.JsonParser
 import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -61,6 +62,10 @@ class ParserFactory(private val conf: ImmutableConfig) {
             val htmlParsers = listOf(PrimerHtmlParser(conf))
             listOf("text/html", "application/xhtml+xml").forEach {
                 mineType2Parsers[it] = htmlParsers
+            }
+            val jsonParsers = listOf(JsonParser())
+            listOf("application/json", "application/ld+json").forEach {
+                mineType2Parsers[it] = jsonParsers
             }
         }
     }

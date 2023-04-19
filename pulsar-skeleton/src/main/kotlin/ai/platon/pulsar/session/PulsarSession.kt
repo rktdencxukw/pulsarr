@@ -17,6 +17,7 @@ import ai.platon.pulsar.crawl.common.PageCatch
 import ai.platon.pulsar.crawl.fetch.driver.WebDriver
 import ai.platon.pulsar.dom.FeaturedDocument
 import ai.platon.pulsar.persist.WebPage
+import com.jayway.jsonpath.DocumentContext
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 
@@ -974,6 +975,7 @@ interface PulsarSession : AutoCloseable {
      * Load or fetch a webpage and then parse it into an HTML document.
      * */
     fun loadDocument(url: NormUrl): FeaturedDocument
+    fun loadJson(url: String) : DocumentContext?
     /**
      * Load or fetch a webpage located by the given url, and then extract fields specified by
      * field selectors.
