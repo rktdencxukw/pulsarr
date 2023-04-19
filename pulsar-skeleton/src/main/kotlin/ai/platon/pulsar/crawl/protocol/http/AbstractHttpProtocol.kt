@@ -90,7 +90,7 @@ abstract class AbstractHttpProtocol : Protocol {
         return try {
             getProtocolOutputWithRetry(page)
         } catch (e: Throwable) {
-            log.warn("Unexpected exception", e)
+            log.warn("Unexpected exception. getProtocolOutput: {}", page.url, e)
             ProtocolOutput(ProtocolStatus.failed(e))
         }
     }

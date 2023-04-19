@@ -1,7 +1,6 @@
 package ai.platon.pulsar.crawl.fetch.driver
 
 import ai.platon.pulsar.common.urls.UrlUtils
-import ai.platon.pulsar.crawl.signature.HttpsUrlValidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -19,7 +18,7 @@ import kotlin.random.Random
 abstract class AbstractWebDriver(
     override val browser: Browser,
     override val id: Int = instanceSequencer.incrementAndGet()
-): Comparable<AbstractWebDriver>, AbstractJvmWebDriver(), WebDriver, JvmWebDriver {
+) : Comparable<AbstractWebDriver>, AbstractJvmWebDriver(), WebDriver, JvmWebDriver {
     companion object {
         val instanceSequencer = AtomicInteger()
     }
@@ -35,18 +34,19 @@ abstract class AbstractWebDriver(
 
     override val name get() = javaClass.simpleName + "-" + id
 
-    override val delayPolicy: (String) -> Long get() = { type ->
-        when (type) {
-            "gap" -> 500L + Random.nextInt(500)
-            "click" -> 500L + Random.nextInt(1000)
-            "type" -> 50L + Random.nextInt(500)
-            "mouseWheel" -> 800L + Random.nextInt(500)
-            "dragAndDrop" -> 800L + Random.nextInt(500)
-            "waitForNavigation" -> 500L
-            "waitForSelector" -> 1000L
-            else -> 100L + Random.nextInt(500)
+    override val delayPolicy: (String) -> Long
+        get() = { type ->
+            when (type) {
+                "gap" -> 500L + Random.nextInt(500)
+                "click" -> 500L + Random.nextInt(1000)
+                "type" -> 50L + Random.nextInt(500)
+                "mouseWheel" -> 800L + Random.nextInt(500)
+                "dragAndDrop" -> 800L + Random.nextInt(500)
+                "waitForNavigation" -> 500L
+                "waitForSelector" -> 1000L
+                else -> 100L + Random.nextInt(500)
+            }
         }
-    }
 
     override var navigateEntry: NavigateEntry = NavigateEntry("")
 
@@ -66,6 +66,7 @@ abstract class AbstractWebDriver(
 
     override val isInit get() = state.get().isInit
     override val isReady get() = state.get().isReady
+
     @Deprecated("Inappropriate name", replaceWith = ReplaceWith("isReady()"))
     override val isFree get() = isReady
     override val isWorking get() = state.get().isWorking
@@ -83,6 +84,7 @@ abstract class AbstractWebDriver(
         }
         state.set(WebDriver.State.READY)
     }
+
     override fun startWork() {
         canceled.set(false)
         crashed.set(false)
@@ -91,6 +93,7 @@ abstract class AbstractWebDriver(
         }
         state.set(WebDriver.State.WORKING)
     }
+
     override fun retire() = state.set(WebDriver.State.RETIRED)
     override fun cancel() {
         canceled.set(true)
@@ -116,7 +119,8 @@ abstract class AbstractWebDriver(
     override suspend fun waitForNavigation(): Long = waitForNavigation(Duration.ofSeconds(10))
 
     @Throws(WebDriverException::class)
-    override suspend fun waitForNavigation(timeoutMillis: Long): Long = waitForNavigation(Duration.ofMillis(timeoutMillis))
+    override suspend fun waitForNavigation(timeoutMillis: Long): Long =
+        waitForNavigation(Duration.ofMillis(timeoutMillis))
 
     override suspend fun evaluateSilently(expression: String): Any? =
         takeIf { isWorking }?.runCatching { evaluate(expression) }
@@ -235,7 +239,7 @@ abstract class AbstractWebDriver(
             }
         }
 
-        HttpsUrlValidator.retrieveResponseFromServer(url);
+//        HttpsUrlValidator.retrieveResponseFromServer(url);
         val response = withContext(Dispatchers.IO) {
             jsoupSession?.newRequest()?.url(url)?.execute()
         }
@@ -256,7 +260,7 @@ abstract class AbstractWebDriver(
 
     override fun compareTo(other: AbstractWebDriver): Int = id - other.id
 
-    override fun toString(): String = sessionId?.let { "#$id-$sessionId" }?:"#$id"
+    override fun toString(): String = sessionId?.let { "#$id-$sessionId" } ?: "#$id"
 
     private fun getHeadersAndCookies(): Pair<Map<String, String>, List<Map<String, String>>> {
         return runBlocking {
@@ -290,13 +294,12 @@ abstract class AbstractWebDriver(
         // Since the browser uses the system proxy (by default),
         // so the http connection should also use the system proxy
         val proxy = browser.id.proxyServer ?: System.getenv("http_proxy")
-        if (proxy != null && UrlUtils.isStandard(proxy)) {
-            val u = UrlUtils.getURLOrNull(proxy)
-            if (u != null) {
-                session.proxy(u.host, u.port)
+        if (proxy != null) {
+            if ((UrlUtils.isStandard(proxy) && UrlUtils.getURLOrNull(proxy)
+                    ?.let { session.proxy(it.host, it.port) } != null).not()
+            ) {
+                throw IllegalStateException("Invalid proxy: $proxy")
             }
-        } else {
-            throw IllegalStateException("Invalid proxy: $proxy")
         }
 
         return session

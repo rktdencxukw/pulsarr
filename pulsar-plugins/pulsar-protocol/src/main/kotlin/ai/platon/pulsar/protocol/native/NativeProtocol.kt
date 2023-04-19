@@ -7,7 +7,6 @@ import ai.platon.pulsar.crawl.protocol.ForwardingResponse
 import ai.platon.pulsar.crawl.protocol.Response
 import ai.platon.pulsar.crawl.protocol.http.AbstractHttpProtocol
 import ai.platon.pulsar.crawl.protocol.http.ProtocolStatusTranslator
-import ai.platon.pulsar.crawl.signature.HttpsUrlValidator
 import ai.platon.pulsar.persist.PageDatum
 import ai.platon.pulsar.persist.WebPage
 import ai.platon.pulsar.protocol.browser.driver.SessionLostException
@@ -36,7 +35,7 @@ class NativeProtocol : AbstractHttpProtocol() {
         }
 
         val url = page.url
-        HttpsUrlValidator.retrieveResponseFromServer(url);
+//        HttpsUrlValidator.retrieveResponseFromServer(url);
         val response = withContext(Dispatchers.IO) {
             jsoupSession?.newRequest()?.url(url)?.execute()
         }?: return ForwardingResponse.failed(page, SessionLostException("null response"))

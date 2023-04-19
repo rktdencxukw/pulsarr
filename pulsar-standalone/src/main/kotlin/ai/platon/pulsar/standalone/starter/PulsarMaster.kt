@@ -3,6 +3,7 @@ package ai.platon.pulsar.standalone.starter
 import ai.platon.pulsar.boot.autoconfigure.PulsarContextInitializer
 import ai.platon.pulsar.common.metrics.AppMetrics
 import ai.platon.pulsar.crawl.CrawlLoops
+import ai.platon.pulsar.standalone.starter.HttpsUrlValidator.miTM
 import org.h2.tools.Server
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -14,6 +15,10 @@ import org.springframework.context.annotation.ImportResource
 import org.springframework.context.support.AbstractApplicationContext
 import java.sql.SQLException
 import javax.annotation.PostConstruct
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
 
 @SpringBootApplication
 @ImportResource("classpath:pulsar-beans/app-context.xml")
@@ -52,12 +57,23 @@ class PulsarMaster(
     @PostConstruct
     fun postConstruct() {
         logger.info("PostConstruct Pulsar master is running")
+        HttpsUrlValidator.disableSSLVerified()
 //        for(beanName in applicationContext.beanDefinitionNames) {
 //            val aliases = applicationContext.getAliases(beanName)
 //            logger.info("kcdebug. beanName:$beanName,别名:[${aliases.joinToString(",")}]")
 //        }
 //        appMetrics!!.start()
+//        val hv = HostnameVerifier { urlHostName, session ->
+//            println(
+//                "Warning: URL Host: " + urlHostName + " vs. "
+//                        + session.peerHost
+//            )
+//            true
+//        }
+//        trustAllHttpsCertificates()
+//        HttpsURLConnection.setDefaultHostnameVerifier(hv)
     }
+
 }
 
 fun main(args: Array<String>) {

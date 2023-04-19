@@ -72,17 +72,15 @@ object DomFunctionTables {
     @UDFunction(hasShortcut = true, description = "Load a page and select the specified element by jsonPath")
     @JvmStatic
     @JvmOverloads
-    fun loadAndSelectJson(
+    fun loadJson(
         @H2Context conn: JdbcConnection,
-        url: String, jsonPathQuery: String, offset: Int = 1, limit: Int = Integer.MAX_VALUE): ResultSet {
+        url: String, offset: Int = 1, limit: Int = Integer.MAX_VALUE): ResultSet {
         val session = H2SessionFactory.getSession(conn)
         if (session.isColumnRetrieval(conn)) {
-//            return toDOMResultSet(FeaturedDocument.NIL, listOf())
             return toJsonResultSet(null)
         }
 
         val document = session.loadJson(url) ?: return ResultSets.newSimpleResultSet()
-//        val elements = document.select(jsonPathQuery, offset, limit)
         return toJsonResultSet(document)
     }
 

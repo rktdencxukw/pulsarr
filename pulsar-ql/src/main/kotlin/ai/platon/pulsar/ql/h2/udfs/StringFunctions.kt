@@ -587,4 +587,22 @@ object StringFunctions {
         }
         return result
     }
+    @UDFunction
+    @JvmStatic
+    fun stringAppendAllEnd(strs: Array<String>, arg1: String): Array<String> {
+        val result:Array<String> = Array<String>(strs.size) { "" }
+        for (i in strs.indices) {
+            result[i] = strs[i] + arg1
+        }
+        return result
+    }
+    @UDFunction
+    @JvmStatic
+    fun stringAppendAllStart(strs: Array<String>, arg1: String): Array<String> {
+        val result:Array<String> = Array<String>(strs.size) { "" }
+        for (i in strs.indices) {
+            result[i] = arg1 + strs[i]
+        }
+        return result
+    }
 }
