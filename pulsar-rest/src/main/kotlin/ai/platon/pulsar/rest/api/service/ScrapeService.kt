@@ -115,6 +115,7 @@ class ScrapeService(
             val xSQL = ScrapeAPIUtils.normalize(sql)
             XSQLScrapeHyperlink(request, xSQL, session, globalCacheFactory)
         } else {
+            TODO()
             DegenerateXSQLScrapeHyperlink(request, session, globalCacheFactory)
         }
     }
