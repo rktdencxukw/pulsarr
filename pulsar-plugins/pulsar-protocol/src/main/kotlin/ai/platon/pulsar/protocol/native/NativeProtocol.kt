@@ -1,24 +1,25 @@
 package ai.platon.pulsar.protocol.native
 
+import ai.platon.pulsar.common.HttpHeaders
 import ai.platon.pulsar.common.persist.ext.options
 import ai.platon.pulsar.common.urls.UrlUtils
-import ai.platon.pulsar.crawl.fetch.driver.AbstractBrowser
 import ai.platon.pulsar.crawl.protocol.ForwardingResponse
 import ai.platon.pulsar.crawl.protocol.Response
-import ai.platon.pulsar.crawl.protocol.http.AbstractNativeHttpProtocol
+import ai.platon.pulsar.crawl.protocol.http.AbstractHttpProtocol
 import ai.platon.pulsar.crawl.protocol.http.ProtocolStatusTranslator
 import ai.platon.pulsar.crawl.signature.HttpsUrlValidator
+import ai.platon.pulsar.persist.PageDatum
 import ai.platon.pulsar.persist.WebPage
 import ai.platon.pulsar.protocol.browser.driver.SessionLostException
-import ai.platon.pulsar.protocol.browser.emulator.BrowserResponseEvents
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 
-class NativeProtocol : AbstractNativeHttpProtocol() {
+class NativeProtocol : AbstractHttpProtocol() {
     private val jsoupCreateDestroyMonitor = Any()
     private var jsoupSession: Connection? = null
     override suspend fun getResponseDeferred(page: WebPage, followRedirects: Boolean): Response? {
@@ -26,11 +27,12 @@ class NativeProtocol : AbstractNativeHttpProtocol() {
         require(page.isResource) { "Unexpected non resource page ${page.url}" }
 
         synchronized(jsoupCreateDestroyMonitor) {
-            if (jsoupSession == null) {
+            jsoupSession = this.newSession(emptyMap(), emptyList(), page.options.proxyServer)
+//            if (jsoupSession == null) {
 //                val (headers, cookies) = getHeadersAndCookies()
 //                jsoupSession = newSession(headers, cookies)
-                jsoupSession = newSession(emptyMap(), emptyList(), page.options.proxyServer)
-            }
+//                jsoupSession = this.newSession(emptyMap(), emptyList(), page.options.proxyServer)
+//            }
         }
 
         val url = page.url
@@ -40,43 +42,47 @@ class NativeProtocol : AbstractNativeHttpProtocol() {
         }?: return ForwardingResponse.failed(page, SessionLostException("null response"))
         val protocolStatus = ProtocolStatusTranslator.translateHttpCode(response.statusCode())
         val pageSource = response.body()
-        var pageDatum = PageDatum.also {
+        var pageDatum = PageDatum(page).also {
             it.protocolStatus = protocolStatus
             it.headers.putAll(response.headers())
             it.contentType = response.contentType()
-            it.content = navigateTask.pageSource.toByteArray(StandardCharsets.UTF_8)
+            it.content = pageSource.toByteArray(StandardCharsets.UTF_8)
             it.originalContentLength = it.content?.size ?: 0
         }
 
-        responseHandler.emit(BrowserResponseEvents.willCreateResponse)
-        return createResponseWithDatum(navigateTask, navigateTask.pageDatum).also {
-            responseHandler.emit(BrowserResponseEvents.responseCreated)
+        val headers = pageDatum.headers
 
-        return response
-    }
+        // The page content's encoding is already converted to UTF-8 by Web driver
+        val utf8 = StandardCharsets.UTF_8.name()
+        require(utf8 == "UTF-8") { "UTF-8 is expected" }
 
-    override fun getResponse(url: String, page: WebPage, followRedirects: Boolean): Response {
-        require(page.isNotInternal) { "Unexpected internal page ${page.url}" }
-        require(page.isResource) { "Unexpected non resource page ${page.url}" }
+        headers.put(HttpHeaders.CONTENT_ENCODING, utf8)
+        headers.put(HttpHeaders.Q_TRUSTED_CONTENT_ENCODING, utf8)
+        headers.put(HttpHeaders.Q_RESPONSE_TIME, System.currentTimeMillis().toString())
 
-        synchronized(jsoupCreateDestroyMonitor) {
-            if (jsoupSession == null) {
-//                val (headers, cookies) = getHeadersAndCookies()
-//                jsoupSession = newSession(headers, cookies)
-                jsoupSession = newSession(emptyMap(), emptyList(), page.options.proxyServer)
+        val urls = pageDatum.activeDOMUrls
+        if (urls != null) {
+            pageDatum.location = urls.location
+            if (pageDatum.url != pageDatum.location) {
+                // in-browser redirection
+                // messageWriter?.debugRedirects(pageDatum.url, urls)
             }
         }
 
-        HttpsUrlValidator.retrieveResponseFromServer(url);
-        val response = withContext(Dispatchers.IO) {
-            jsoupSession?.newRequest()?.url(url)?.execute()
-        }
+        return ForwardingResponse(page, pageDatum)
+    }
 
-        return response
+//    override fun getResponse(url: String, page: WebPage, followRedirects: Boolean): Response {
+//        TODO("Not yet implemented")
+//    }
+
+    override fun getResponse(page: WebPage, followRedirects: Boolean): Response? {
+        return runBlocking { getResponseDeferred(page, followRedirects) }
     }
 
 
-    private fun newSession(headers: Map<String, String>, cookies: List<Map<String, String>>, proxyServer: String): Connection {
+
+    fun newSession(headers: Map<String, String>, cookies: List<Map<String, String>>, proxyServer: String): Connection {
         // TODO: use the same user agent as this browser
 //        val userAgent = browser.userAgent ?: (browser as AbstractBrowser).browserSettings.userAgent.getRandomUserAgent()
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
@@ -108,8 +114,5 @@ class NativeProtocol : AbstractNativeHttpProtocol() {
         return session
     }
 
-    override fun getResponse(page: WebPage, followRedirects: Boolean): Response? {
-        TODO("Not yet implemented")
-    }
 
 }

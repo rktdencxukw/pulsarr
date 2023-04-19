@@ -74,7 +74,7 @@ class ScrapeLoadEvent(
         }
         onWillParseHTMLDocument.addLast { page ->
         }
-        onHTMLDocumentParsed.addLast { page, document -> // kcread 完成回调 5
+        onHTMLDocumentParsed.addLast { page, document -> // kcread 完成回调 5. parsed，准备执行xql抽取。extract阶段会再次通过http获取页面，如果有缓存可能不会？
             require(page.hasVar(VAR_IS_SCRAPE))
             hyperlink.extract(page, document)
         }

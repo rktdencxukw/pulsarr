@@ -64,7 +64,7 @@ object DomFunctionTables {
         }
 
         val document = session.loadDocument(url)
-        val elements = document.select(cssQuery, offset, limit)
+        val elements = document.select(cssQuery, offset, limit) //kcread extract phase. 将 jsoup document 转为 JDBC ResultSet
         return toDOMResultSet(document, elements.map { domValue(it) })
     }
 

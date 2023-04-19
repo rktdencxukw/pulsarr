@@ -26,7 +26,8 @@ enum class BrowserType {
             } else try {
                 valueOf(name.uppercase(Locale.getDefault()))
             } catch (e: Throwable) {
-                PULSAR_CHROME
+                throw IllegalArgumentException("Unknown browser type: $name")
+//                PULSAR_CHROME
             }
         }
     }

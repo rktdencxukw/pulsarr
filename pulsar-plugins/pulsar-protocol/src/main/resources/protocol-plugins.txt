@@ -6,3 +6,4 @@
 # Custom protocols
 browser ai.platon.pulsar.protocol.browser.BrowserEmulatorProtocol custom=true
 crowd ai.platon.pulsar.protocol.crowd.ForwardingProtocol custom=true
+native ai.platon.pulsar.protocol.native.NativeProtocol custom=true

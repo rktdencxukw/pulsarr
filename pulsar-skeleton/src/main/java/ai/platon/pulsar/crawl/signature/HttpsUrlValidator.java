@@ -29,20 +29,21 @@ public class HttpsUrlValidator {
             trustAllHttpsCertificates();
             HttpsURLConnection.setDefaultHostnameVerifier(hv);
 
-            connection = (HttpURLConnection) validationUrl.openConnection();
-            final BufferedReader in = new BufferedReader(new InputStreamReader(
-                    connection.getInputStream()));
-
-            String line;
-            final StringBuffer stringBuffer = new StringBuffer(255);
-
-            synchronized (stringBuffer) {
-                while ((line = in.readLine()) != null) {
-                    stringBuffer.append(line);
-                    stringBuffer.append("\n");
-                }
-                return stringBuffer.toString();
-            }
+//            connection = (HttpURLConnection) validationUrl.openConnection();
+//            final BufferedReader in = new BufferedReader(new InputStreamReader(
+//                    connection.getInputStream()));
+//
+//            String line;
+//            final StringBuffer stringBuffer = new StringBuffer(255);
+//
+//            synchronized (stringBuffer) {
+//                while ((line = in.readLine()) != null) {
+//                    stringBuffer.append(line);
+//                    stringBuffer.append("\n");
+//                }
+//                return stringBuffer.toString();
+//            }
+            return null;
 
         } catch (final IOException e) {
             System.out.println(e.getMessage());
@@ -51,9 +52,9 @@ public class HttpsUrlValidator {
             System.out.println(e1.getMessage());
             return null;
         } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
+//            if (connection != null) {
+//                connection.disconnect();
+//            }
         }
     }
 

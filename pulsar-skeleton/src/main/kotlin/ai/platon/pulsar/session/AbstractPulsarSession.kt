@@ -457,6 +457,7 @@ abstract class AbstractPulsarSession(
         }
     }
 
+    //kcread parse phase. 将获取的WebPage转换为FeaturedDocument
     private fun parse0(page: WebPage, noCache: Boolean = false): FeaturedDocument {
         val nil = FeaturedDocument.NIL
 
