@@ -466,6 +466,10 @@ open class StreamingCrawler(
                 handleRetry(url, page)
             }
 
+            if (page == null || page.protocolStatus.isSuccess.not()) {
+                logger.error("Failed to load page | {}, protocolStatus:{}", url, page?.protocolStatus)
+            }
+
             if (page != null) {
                 collectStatAfterLoad(page)
             }

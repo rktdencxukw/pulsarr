@@ -412,10 +412,10 @@ open class InteractiveBrowserEmulator(
             emit1(EmulateEvents.documentActuallyReady, page, driver)
         }
 
-        // add by kc
+        // add by kc. waitForSelector
         if (result.state.isContinue) {
             if (!task.page.options.waitForSelector.isNullOrEmpty()){
-                logger.debug("wait for selector: {}, timeout: {}, task url: {}", task.page.options.waitForSelector, task.page.options.waitForTimeoutMillis, task.url)
+                logger.debug("wait for selector: {}, timeout millis: {}, task url: {}", task.page.options.waitForSelector, task.page.options.waitForTimeoutMillis, task.url)
                 waitForElement(task, listOf(task.page.options.waitForSelector), task.page.options.waitForTimeoutMillis, result)
             }
         }
@@ -455,7 +455,7 @@ open class InteractiveBrowserEmulator(
         val initialScroll = if (scrollCount > 0) 5 else 0
         val delayMillis = 500L * 2
 //        val maxRound = scriptTimeout.toMillis() / delayMillis
-        val maxRound = 60
+        val maxRound = 20
 
         // TODO: wait for expected data, ni, na, nn, nst, etc; required element
         val expression = String.format("__pulsar_utils__.waitForReady(%d)", initialScroll)
@@ -475,7 +475,7 @@ open class InteractiveBrowserEmulator(
         } finally {
             if (message == null) {
                 if (!fetchTask.isCanceled && !interactTask.driver.isQuit && isActive) {
-                    logger.warn(
+                    logger.info(
                         "Timeout to wait for document ready after ${i.dec()} round, " +
                                 "retry is supposed | {}", interactTask.url
                     )
@@ -485,6 +485,7 @@ open class InteractiveBrowserEmulator(
             } else if (message == "timeout") {
                 // this will never happen since 1.10.0
                 logger.warn("Hit max round $maxRound to wait for document | {}", interactTask.url)
+                TODO("shoule not be here")
             } else if (message is String && message.contains("chrome-error://")) {
                 logger.error("Chrome error page is loaded | {}, msg:{}", interactTask.url, message)
                 val browserError = responseHandler.createBrowserErrorResponse(message)
@@ -569,6 +570,7 @@ open class InteractiveBrowserEmulator(
         if (rest < 0 || (exists == null || exists == false)) {
             result.protocolStatus = ProtocolStatus.retry(RetryScope.PRIVACY, "Timeout to wait for element")
             result.state = FlowState.BREAK
+            logger.warn("Timeout to wait for element | {}", interactTask.url)
         }
         return rest
     }
