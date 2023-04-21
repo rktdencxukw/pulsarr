@@ -41,7 +41,7 @@ class ScrapeService(
      * */
     //kcread 启动入口 提交任务。   // spring rest 是一个线程，成本有点高，应及时返回。
     fun executeQuery(request: ScrapeRequest): ScrapeResponse {
-        val hyperlink = createScrapeHyperlink(request)
+        val hyperlink = createScrapeHyperlink(request, null)
         urlPool.higher3Cache.reentrantQueue.add(hyperlink)
         // 可能跟complete函数不在同一个线程，不被执行
 //        hyperlink.whenComplete { scrapeResponse: ScrapeResponse, throwable: Throwable ->
@@ -51,14 +51,14 @@ class ScrapeService(
 //                logger.info("Scrape task completed: ${scrapeResponse.uuid}")
 //            }
 //        }
-        return  hyperlink.get(3, TimeUnit.MINUTES)
+        return hyperlink.get(3, TimeUnit.MINUTES)
     }
 
     /**
      * Submit a scraping task
      * */
-    fun submitJob(request: ScrapeRequest): String {
-        val hyperlink = createScrapeHyperlink(request)
+    fun submitJob(request: ScrapeRequest, reportHandler: ((ScrapeResponse) -> Unit)? = null): String {
+        val hyperlink = createScrapeHyperlink(request, reportHandler)
 //        if (!request.reportUrl.isNullOrEmpty()) {
 //            hyperlink.whenComplete { scrapeResponse: ScrapeResponse, throwable: Throwable ->
 //                if (throwable != null) {
@@ -109,11 +109,14 @@ class ScrapeService(
         }
     }
 
-    private fun createScrapeHyperlink(request: ScrapeRequest): XSQLScrapeHyperlink {
+    private fun createScrapeHyperlink(
+        request: ScrapeRequest,
+        reportHandler: ((ScrapeResponse) -> Unit)?
+    ): XSQLScrapeHyperlink {
         val sql = request.sql
         return if (ScrapeAPIUtils.isScrapeUDF(sql)) {
             val xSQL = ScrapeAPIUtils.normalize(sql)
-            XSQLScrapeHyperlink(request, xSQL, session, globalCacheFactory)
+            XSQLScrapeHyperlink(request, xSQL, session, globalCacheFactory, reportHandler= reportHandler)
         } else {
             TODO()
             DegenerateXSQLScrapeHyperlink(request, session, globalCacheFactory)

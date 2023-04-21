@@ -125,7 +125,8 @@ open class XSQLScrapeHyperlink(
     val sql: NormXSQL,
     val session: PulsarSession,
     val globalCacheFactory: GlobalCacheFactory,
-    val uuid: String = UUID.randomUUID().toString()
+    val uuid: String = UUID.randomUUID().toString(),
+    val reportHandler: ((ScrapeResponse) -> Unit)? = null,
 ) : CompletableListenableHyperlink<ScrapeResponse>(sql.url) {
 
     private val logger = getLogger(XSQLScrapeHyperlink::class)
@@ -163,11 +164,14 @@ open class XSQLScrapeHyperlink(
 
         complete(response)
 
-        if (!request.reportUrl.isNullOrEmpty()) {
+        logger.info("Scrape task completed: ${response.uuid}")
+
+        if (reportHandler != null) {
+            reportHandler!!(response)
+        } else if (!request.reportUrl.isNullOrEmpty()) {
             var tried = 0
             while (++tried <= 3) {
                 try {
-                    logger.info("Scrape task completed: ${response.uuid}")
                     val request = createPostRequest(request.reportUrl, response)
                     val response = ReportHttpClient.instance.send(request, HttpResponse.BodyHandlers.ofString())
                     logger.debug("report scrape result: {}", response)
