@@ -91,21 +91,15 @@ class PulsarMaster(
             nodeId = idFile.readText()
             logger.info("node id: $nodeId")
         }
-        val ipType = env.getProperty("pulsar.ip.type", IpType.SERVER.name) // residence, server
-        val fetchModeSupport =
-            env.getProperty("pulsar.fetch_mode.support", FetchMode.BROWSER.name) // headless, browser, native
         val exoticServer = env.getProperty("pulsar.exotic.server", "")
 
-//        sessionHandler= CustmStompSessionHandler()
 
         stompClient.messageConverter = MappingJackson2MessageConverter()
         stompSession = stompClient.connect(
             "ws://$exoticServer/exotic/ws",
-//            "ws://192.168.68.172:8080/ws",
             sessionHandler
         ).get()
         sessionHandler.thisSession = stompSession
-        var node = ScrapeNodeRegisterInfo(nodeId, ipType, fetchModeSupport)
     }
 }
 
@@ -188,33 +182,13 @@ class CustomStompSessionHandler(
     }
 
     override fun afterConnected(session: StompSession, connectedHeaders: StompHeaders) {
-        logger.debug("Connected to exotic server")
-        println("Connected to exotic server")
-
-
-//        session.subscribe("/topic/public", this)
-//        var msg = ChatMessage()
-//        msg.sender = "test"
-//        msg.type = ChatMessage.MessageType.CHAT
-//        msg.content ="content"
-//        session.send("/app/chat.sendMessage", msg)
-
+        logger.info("Connected to exotic server")
         session.subscribe("/user/queue/scrape_register", this)
         session.subscribe("/user/queue/command", this)
-//        session.subscribe("/topic/greetings", this)
-//        session.send("/app/test", "test1234")
-////        session.send("/app/hello", HelloMessage("test1234"))
-////        session.send("/app/hello2", HelloMessage2("test1234"))
-//        session.send("/app/hello3", HelloMessage3("test1234"))
-        var node = ScrapeNodeRegisterInfo("", "server", "browser")
-//        session.send("/app/scrape6", node)
-////        session.send("/app/scrape_register_test5", HelloMessage2("scrape5"))
-//        session.send("/app/scrape_register_test4", node)
-////        session.send("/app/scrape_register_test4", ScrapeNodeRegisterInfo("wefjowe", "server", "browser"))
-////        session.send("/app/scrape_register_test3", node)
-////        session.send("/app/scrape_register_test1", node)
-//        session.send("/app/scrape_register_test21", node)
-//        session.send("/app/scrape_register_test2", node)
+        val ipType = env.getProperty("pulsar.ip.type", IpType.SERVER.name) // residence, server
+        val fetchModeSupport =
+            env.getProperty("pulsar.fetch_mode.support", FetchMode.BROWSER.name) // headless, browser, native
+        var node = ScrapeNodeRegisterInfo("", ipType, fetchModeSupport)
         session.send("/app/scrape_register", node)
     }
 
@@ -225,28 +199,14 @@ class CustomStompSessionHandler(
         payload: ByteArray,
         exception: Throwable
     ) {
-        println("handleException, $headers, $payload, $exception, $command, $session")
+        logger.error("handleException, $headers, $payload, $exception, $command, $session")
     }
 
     override fun handleTransportError(session: StompSession, exception: Throwable) {
-        println("handleTransportError, $exception, $session")
+        logger.error("handleTransportError, $exception, $session")
     }
 }
 
-class HelloMessage {
-    var name: String? = null
-
-    constructor()
-    constructor(name: String?) {
-        this.name = name
-    }
-}
-data class HelloMessage2 (
-    var name: String? = null
-)
-data class HelloMessage3 (
-    var name: String
-)
 
 fun main(args: Array<String>) {
     runApplication<PulsarMaster>(*args) {
