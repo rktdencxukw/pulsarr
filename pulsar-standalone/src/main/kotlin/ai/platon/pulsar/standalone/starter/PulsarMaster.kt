@@ -124,6 +124,12 @@ class CustomStompSessionHandler(
     override fun getPayloadType(headers: StompHeaders): Type {
         println("getPayloadType, $headers")
 //        return String::class.java
+        headers["oh_action"]?.let {
+            return when (it as String) {
+                "scrape" -> Command::class.java
+                else -> throw RuntimeException("Unknown action: $it")
+            }
+        }
         return ExoticResponse::class.java // works. 服务端必须返回 ExoticResponse 结构体
     }
 
@@ -139,8 +145,7 @@ class CustomStompSessionHandler(
             "/user/queue/command" -> {
                 when (headers["oh_action"] as String) {
                     "scrape" -> {
-                        val msg = payload as ExoticResponse<Command<ScrapeRequest>>
-                        val command = msg.data
+                        val command = payload as Command<ScrapeRequest>
                         val reqId = command!!.reqId
                         val serverTaskIds = command!!.args?.map { arg ->
                             println("scrape: $arg")
