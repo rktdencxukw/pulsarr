@@ -114,6 +114,9 @@
     <profiles>
         <profile>
             <id>integrate-package</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <build>
                 <finalName>${artifactId}-${project.version}-int</finalName>
                 <plugins>
@@ -143,9 +146,9 @@
         </profile>
         <profile>
             <id>separate-package</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
+<!--            <activation>-->
+<!--                <activeByDefault>true</activeByDefault>-->
+<!--            </activation>-->
             <properties>
             </properties>
 
