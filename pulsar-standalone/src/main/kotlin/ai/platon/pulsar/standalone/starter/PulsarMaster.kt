@@ -12,6 +12,14 @@ import ai.platon.pulsar.persist.metadata.IpType
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeRequestSubmitResponse
 import ai.platon.pulsar.rest.api.service.ScrapeService
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.datatype.jsr310.deser.InstantDeserializer
+import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer
+import com.fasterxml.jackson.module.kotlin.readValue
 import org.h2.tools.Server
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,13 +35,16 @@ import org.springframework.messaging.simp.stomp.StompCommand
 import org.springframework.messaging.simp.stomp.StompHeaders
 import org.springframework.messaging.simp.stomp.StompSession
 import org.springframework.messaging.simp.stomp.StompSessionHandler
-import org.springframework.stereotype.Component
 import org.springframework.web.socket.client.WebSocketClient
 import org.springframework.web.socket.client.standard.StandardWebSocketClient
 import org.springframework.web.socket.messaging.WebSocketStompClient
 import java.io.File
 import java.lang.reflect.Type
 import java.sql.SQLException
+import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.util.*
 import javax.annotation.PostConstruct
 
 
@@ -59,7 +70,7 @@ class PulsarMaster(
 
     //    lateinit var sessionHandler: StompSessionHandler
     lateinit var stompSession: StompSession
-    private val sessionHandler = CustomStompSessionHandler(env,scrapeService)
+    private val sessionHandler = CustomStompSessionHandler(env,scrapeService, ohObjectMapper())
 
     /**
      * Enable H2 client
@@ -80,6 +91,23 @@ class PulsarMaster(
         return Server.createWebServer("-webAllowOthers")
     }
 
+//    @Bean
+    fun ohObjectMapper(): ObjectMapper {
+        val mapper = ObjectMapper()
+        val jm = JavaTimeModule()
+        jm.addSerializer(Instant::class.java, MyInstantSerializer())
+        jm.addDeserializer(Instant::class.java, MyInstantDeserializer())
+        mapper.registerModule(jm)
+        mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
+        mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        mapper.configure(SerializationFeature.INDENT_OUTPUT, true);
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        mapper.setTimeZone(TimeZone.getTimeZone("GMT+8:00"))
+        mapper.dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+        return mapper
+    }
+
     @PostConstruct
     fun postConstruct() {
         logger.info("PostConstruct Pulsar master is running")
@@ -94,7 +122,9 @@ class PulsarMaster(
         val exoticServer = env.getProperty("pulsar.exotic.server", "")
 
 
-        stompClient.messageConverter = MappingJackson2MessageConverter()
+        var mm = MappingJackson2MessageConverter()
+        mm.objectMapper = ohObjectMapper()
+        stompClient.messageConverter = mm
         stompSession = stompClient.connect(
             "ws://$exoticServer/exotic/ws",
             sessionHandler
@@ -103,19 +133,17 @@ class PulsarMaster(
     }
 }
 
-class ChatMessage {
-    var type: MessageType? = null
-    var content: String? = null
-    var sender: String? = null
 
-    enum class MessageType {
-        CHAT, JOIN, LEAVE
-    }
-}
+private class MyInstantSerializer
+    : InstantSerializer(InstantSerializer.INSTANCE, false, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(TimeZone.getTimeZone("GMT+8:00").toZoneId()))
+private class MyInstantDeserializer
+    : InstantDeserializer<Instant>(InstantDeserializer.INSTANT, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(TimeZone.getTimeZone("GMT+8:00").toZoneId()))
+
 
 class CustomStompSessionHandler(
     val env: Environment,
-    val scrapeService: ScrapeService
+    val scrapeService: ScrapeService,
+    val ohObjectMapper: ObjectMapper
 ) : StompSessionHandler {
 
     private val proxy = env.getProperty("pulsar.proxy", "")
@@ -124,12 +152,13 @@ class CustomStompSessionHandler(
     override fun getPayloadType(headers: StompHeaders): Type {
         println("getPayloadType, $headers")
 //        return String::class.java
-        headers["oh_action"]?.let {
-            return when (it as String) {
-                "scrape" -> Command::class.java
-                else -> throw RuntimeException("Unknown action: $it")
-            }
-        }
+//        return String::class.java
+//        if (headers["oh_action"] != null) {
+//            val action = headers["oh_action"][0] as String
+//            when(action) {
+//                "scrape" -> return Command::class.java
+//            }
+//        }
         return ExoticResponse::class.java // works. 服务端必须返回 ExoticResponse 结构体
     }
 
@@ -143,9 +172,10 @@ class CustomStompSessionHandler(
             }
 
             "/user/queue/command" -> {
-                when (headers["oh_action"] as String) {
+                when (headers["oh_action"][0] as String) {
                     "scrape" -> {
-                        val command = payload as Command<ScrapeRequest>
+                        val pl = payload as ExoticResponse<String>
+                        val command = ohObjectMapper.readValue<Command<ScrapeRequest>>(pl.data!!)
                         val reqId = command!!.reqId
                         val serverTaskIds = command!!.args?.map { arg ->
                             println("scrape: $arg")
@@ -154,9 +184,9 @@ class CustomStompSessionHandler(
 //                                val sql = arg.sql.replace("-proxyServer ", "--proxy-server")
                                // regex to remove '-proxyServer 192.168.293.123:292'
                                 println("sql before replace: ${arg.sql}")
-                                var sql = arg.sql.replace("-proxyServer [0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(), "")
-                                sql = sql.replace("--proxy-server [0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(), "")
-                                arg.sql = "$sql -proxyServer $proxy"
+                                var sql = arg.sql.replace("-proxyServer http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(), "-proxyServer $proxy")
+                                sql = sql.replace("--proxy-server http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(),  "-proxyServer $proxy")
+                                arg.sql = sql
                                 println("sql after replace: ${arg.sql}")
                             }
 

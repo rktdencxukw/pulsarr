@@ -57,7 +57,15 @@ open class ExoticResponse<T: Serializable> {
     }
 }
 
-class Command<O>(val action: String, val reqId: Long) : Serializable {
+class Command<O> : Serializable {
+    var action: String
+    var reqId: Long
+
+    constructor(action: String, reqId: Long) {
+        this.action = action
+        this.reqId = reqId
+    }
+    constructor() : this("", 0)
     var args: List<O>? = null
 }
 

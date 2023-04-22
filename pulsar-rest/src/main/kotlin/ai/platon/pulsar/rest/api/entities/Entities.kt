@@ -12,6 +12,14 @@ class ScrapeRequest {
     var asap: Boolean = false
     var reportUrl: String = ""
 
+    constructor() {
+        this.sql = ""
+        this.authToken = ""
+        this.priority = "HIGHER2"
+        this.asap = false
+        this.reportUrl = ""
+    }
+
     constructor(sql: String) {
         this.sql = sql
         this.authToken = ""
@@ -19,6 +27,7 @@ class ScrapeRequest {
         this.asap = false
         this.reportUrl = ""
     }
+
     constructor(
         sql: String,
         authToken: String,
@@ -47,7 +56,7 @@ class ScrapeRequest {
     }
 }
 
-data class ScrapeRequestSubmitResponse (
+data class ScrapeRequestSubmitResponse(
     var uuid: String? = null,
     var code: Int = 0,
     var errorMessage: String = ""
