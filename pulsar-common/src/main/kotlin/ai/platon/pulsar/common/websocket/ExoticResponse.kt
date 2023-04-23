@@ -69,7 +69,8 @@ class Command<O> : Serializable {
     var args: List<O>? = null
 }
 
-class CommandResponse<O>(val reqId: Long) : Serializable {
+class CommandResponse<O>(var reqId: Long = 0) {
+    constructor() : this(0)
     var code: Int = 0
     var message: String = "ok"
     var data: O? = null

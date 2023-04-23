@@ -9,6 +9,7 @@ import ai.platon.pulsar.common.websocket.ExoticResponse
 import ai.platon.pulsar.crawl.CrawlLoops
 import ai.platon.pulsar.persist.metadata.FetchMode
 import ai.platon.pulsar.persist.metadata.IpType
+import ai.platon.pulsar.rest.api.common.JdbcArraySerializer
 import ai.platon.pulsar.rest.api.entities.ScrapeRequest
 import ai.platon.pulsar.rest.api.entities.ScrapeRequestSubmitResponse
 import ai.platon.pulsar.rest.api.service.ScrapeService
@@ -16,10 +17,12 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.datatype.jsr310.deser.InstantDeserializer
 import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer
 import com.fasterxml.jackson.module.kotlin.readValue
+import org.h2.jdbc.JdbcArray
 import org.h2.tools.Server
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -122,14 +125,17 @@ class PulsarMaster(
         val exoticServer = env.getProperty("pulsar.exotic.server", "")
 
 
-        var mm = MappingJackson2MessageConverter()
-        mm.objectMapper = ohObjectMapper()
-        stompClient.messageConverter = mm
-        stompSession = stompClient.connect(
-            "ws://$exoticServer/exotic/ws",
-            sessionHandler
-        ).get()
-        sessionHandler.thisSession = stompSession
+        if (exoticServer.isNullOrEmpty().not()) {
+            logger.info("connection exotic master via weboscket")
+            var mm = MappingJackson2MessageConverter()
+            mm.objectMapper = ohObjectMapper()
+            stompClient.messageConverter = mm
+            stompSession = stompClient.connect(
+                "ws://$exoticServer/exotic/ws",
+                sessionHandler
+            ).get()
+            sessionHandler.thisSession = stompSession
+        }
     }
 }
 
@@ -149,6 +155,23 @@ class CustomStompSessionHandler(
     private val proxy = env.getProperty("pulsar.proxy", "")
     private val logger = LoggerFactory.getLogger(CustomStompSessionHandler::class.java)
     lateinit var thisSession: StompSession
+
+    private val scrapeResponseObjectMapper: ObjectMapper = ObjectMapper().apply {
+        val jm = JavaTimeModule()
+        jm.addSerializer(Instant::class.java, MyInstantSerializer())
+        jm.addDeserializer(Instant::class.java, MyInstantDeserializer())
+        registerModule(jm)
+        registerModule(SimpleModule().apply {
+            addSerializer(JdbcArray::class.java, JdbcArraySerializer())
+        })
+        setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
+        configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        configure(SerializationFeature.INDENT_OUTPUT, true);
+        configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        setTimeZone(TimeZone.getTimeZone("GMT+8:00"))
+        dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    }
     override fun getPayloadType(headers: StompHeaders): Type {
         println("getPayloadType, $headers")
 //        return String::class.java
@@ -187,16 +210,23 @@ class CustomStompSessionHandler(
                                 var sql = arg.sql.replace("-proxyServer http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(), "-proxyServer $proxy")
                                 sql = sql.replace("--proxy-server http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(),  "-proxyServer $proxy")
                                 arg.sql = sql
+                                arg.sql = if (arg.sql.contains("-proxyServer")) {
+                                    arg.sql.replace("-proxyServer http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(), "-proxyServer $proxy")
+                                } else if (arg.sql.contains("--proxy-server")) {
+                                    arg.sql.replace("--proxy-server http://[0-9]+.[0-9]+.[0-9]+.[0-9]+:[0-9]+".toRegex(),  "-proxyServer $proxy")
+                                } else {
+                                    arg.sql.replace("(-taskId [0-9a-zA-Z]+ )".toRegex(),  "$1 -proxyServer $proxy")
+                                }
                                 println("sql after replace: ${arg.sql}")
                             }
 
                             val serverTaskId = scrapeService.submitJob(arg, reportHandler = { res ->
-                                thisSession.send("/app/scrape_task_finished", res)
+                                thisSession.send("/app/scrape_task_finished", scrapeResponseObjectMapper.writeValueAsString(res))
                             })
                             println("submit result: $serverTaskId")
                             var rsp = CommandResponse<ScrapeRequestSubmitResponse>(reqId)
                             rsp.data = ScrapeRequestSubmitResponse(serverTaskId)
-                            thisSession.send("/app/scrape_task_submitted", rsp)
+                            thisSession.send("/app/scrape_task_submitted", scrapeResponseObjectMapper.writeValueAsString(rsp))
                             serverTaskId
                         } ?: listOf()
                     }
