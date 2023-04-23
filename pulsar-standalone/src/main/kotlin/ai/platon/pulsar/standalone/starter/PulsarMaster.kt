@@ -22,6 +22,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.datatype.jsr310.deser.InstantDeserializer
 import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.h2.jdbc.JdbcArray
 import org.h2.tools.Server
 import org.slf4j.LoggerFactory
@@ -222,6 +225,12 @@ class CustomStompSessionHandler(
 
                             val serverTaskId = scrapeService.submitJob(arg, reportHandler = { res ->
                                 thisSession.send("/app/scrape_task_finished", scrapeResponseObjectMapper.writeValueAsString(res))
+                                GlobalScope.launch {
+                                    launch {
+                                        delay(1000 * 60 * 2)
+                                        scrapeService.clean(res.uuid!!)
+                                    }
+                                }
                             })
                             println("submit result: $serverTaskId")
                             var rsp = CommandResponse<ScrapeRequestSubmitResponse>(reqId)
@@ -229,6 +238,13 @@ class CustomStompSessionHandler(
                             thisSession.send("/app/scrape_task_submitted", scrapeResponseObjectMapper.writeValueAsString(rsp))
                             serverTaskId
                         } ?: listOf()
+                    }
+                    "clean" -> {
+                        val pl = payload as ExoticResponse<String>
+                        val command = ohObjectMapper.readValue<Command<String>>(pl.data!!)
+                        command.args?.get(0).let {
+                            scrapeService.clean(it!!)
+                        }
                     }
                 }
             }
