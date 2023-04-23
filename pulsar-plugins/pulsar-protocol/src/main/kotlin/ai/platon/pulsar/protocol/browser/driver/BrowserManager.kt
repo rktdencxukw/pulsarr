@@ -127,6 +127,7 @@ open class BrowserManager(
     private fun launchIfAbsent(
         browserId: BrowserId, launcherOptions: LauncherOptions, launchOptions: ChromeOptions
     ): Browser {
+        println("kcdebug. browserId, context dir: ${browserId.contextDir}, ${browserId.browserType.name}")
         val browser = _browsers.computeIfAbsent(browserId) {
             browserFactory.launch(browserId, launcherOptions, launchOptions)
         }

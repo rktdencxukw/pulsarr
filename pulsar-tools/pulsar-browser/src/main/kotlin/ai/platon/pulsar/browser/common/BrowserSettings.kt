@@ -306,6 +306,8 @@ open class BrowserSettings(
      * before loading a page, and custom scripts are also allowed.
      * */
     val isStartupScriptEnabled get() = conf.getBoolean(BROWSER_JS_INVADING_ENABLED, true)
+
+    val userDataDir: String get() = conf.getStrings(BROWSER_USER_DATA_DIR, "")[0]
     /**
      * The probability to block resource requests.
      * */

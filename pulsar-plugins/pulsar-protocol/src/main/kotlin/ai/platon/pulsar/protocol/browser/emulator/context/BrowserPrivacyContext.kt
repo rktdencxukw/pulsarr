@@ -3,6 +3,7 @@ package ai.platon.pulsar.protocol.browser.emulator.context
 import ai.platon.pulsar.common.PulsarParams.VAR_PRIVACY_CONTEXT_NAME
 import ai.platon.pulsar.common.Strings
 import ai.platon.pulsar.common.brief
+import ai.platon.pulsar.common.config.CapabilityTypes
 import ai.platon.pulsar.common.config.ImmutableConfig
 import ai.platon.pulsar.common.proxy.*
 import ai.platon.pulsar.common.readable
@@ -17,6 +18,7 @@ import ai.platon.pulsar.crawl.fetch.privacy.PrivacyContextId
 import ai.platon.pulsar.protocol.browser.driver.WebDriverPoolManager
 import com.google.common.annotations.Beta
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
 
 open class BrowserPrivacyContext constructor(
     val proxyPoolManager: ProxyPoolManager? = null,
@@ -27,7 +29,9 @@ open class BrowserPrivacyContext constructor(
 ): PrivacyContext(id, conf) {
     private val logger = LoggerFactory.getLogger(BrowserPrivacyContext::class.java)
     private var proxyEntry: ProxyEntry? = null
-    private val browserId = BrowserId(id.contextDir, id.fingerprint)
+    private val definedUserDataDir = conf.getStrings(CapabilityTypes.BROWSER_USER_DATA_DIR, "")[0]
+    private val browserId = if (definedUserDataDir.isNullOrEmpty()){BrowserId(id.contextDir, id.fingerprint)} else {BrowserId(
+        Path.of("/tmp/chrome-context"), id.fingerprint)}
     private val driverContext = WebDriverContext(browserId, driverPoolManager, conf)
     private var proxyContext: ProxyContext? = null
     /**

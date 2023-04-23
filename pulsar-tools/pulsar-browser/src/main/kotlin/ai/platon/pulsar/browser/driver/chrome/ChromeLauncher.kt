@@ -43,14 +43,19 @@ class ChromeLauncher(
      * Launch the chrome
      * */
     fun launch(chromeBinaryPath: Path, options: ChromeOptions): RemoteChrome {
-        // if the data dir is the default dir, we might have problem to prepare user dir
-        if ("context\\default--" !in userDataDir.toString()) {
-        }
-        kotlin.runCatching { prepareUserDataDir() }.onFailure {
-            logger.warn("Failed to prepare user data dir", it)
-        }
+        val definedUserDataDir = this.options.browserSettings.userDataDir
+        val port = if (definedUserDataDir.isNullOrEmpty()) {
+            // if the data dir is the default dir, we might have problem to prepare user dir
+            if ("context\\default--" !in userDataDir.toString()) {
+            }
+            kotlin.runCatching { prepareUserDataDir() }.onFailure {
+                logger.warn("Failed to prepare user data dir", it)
+            }
 
-        val port = launchChromeProcess(chromeBinaryPath, userDataDir, options)
+            launchChromeProcess(chromeBinaryPath, userDataDir, options)
+        } else {
+            launchChromeProcess(chromeBinaryPath, Path.of(definedUserDataDir), options)
+        }
         return ChromeImpl(port)
     }
 
@@ -62,7 +67,8 @@ class ChromeLauncher(
     /**
      * Launch the chrome
      * */
-    fun launch(headless: Boolean) = launch(Browsers.searchChromeBinary(), ChromeOptions().also { it.headless = headless })
+    fun launch(headless: Boolean) =
+        launch(Browsers.searchChromeBinary(), ChromeOptions().also { it.headless = headless })
 
     /**
      * Launch the chrome
@@ -146,7 +152,7 @@ class ChromeLauncher(
             supervisorProcess = null
         }
 
-        val executable = supervisorProcess?:"$chromeBinary"
+        val executable = supervisorProcess ?: "$chromeBinary"
         val arguments = if (supervisorProcess == null) chromeOptions.toList() else {
             options.supervisorProcessArgs + arrayOf("$chromeBinary") + chromeOptions.toList()
         }.toMutableList()
@@ -247,7 +253,11 @@ class ChromeLauncher(
                 it.lock()
 
                 if (!Files.exists(userDataDir.resolve("Default"))) {
-                    logger.info("User data dir does not exist, copy from prototype | {} <- {}", userDataDir, prototypeUserDataDir)
+                    logger.info(
+                        "User data dir does not exist, copy from prototype | {} <- {}",
+                        userDataDir,
+                        prototypeUserDataDir
+                    )
                     // remove dead symbolic links
                     Files.list(prototypeUserDataDir)
                         .filter { Files.isSymbolicLink(it) && !Files.exists(it) }
@@ -307,8 +317,11 @@ class ChromeLauncher(
                 FileChannel.open(lock, StandardOpenOption.APPEND).use {
                     it.lock()
                     kotlin.runCatching { FileUtils.deleteDirectory(dirToDelete.toFile()) }
-                        .onFailure { logger.warn("Failed to delete directory | {} | {}",
-                            dirToDelete, it.message)
+                        .onFailure {
+                            logger.warn(
+                                "Failed to delete directory | {} | {}",
+                                dirToDelete, it.message
+                            )
                         }
                 }
 

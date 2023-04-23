@@ -280,6 +280,7 @@ public interface CapabilityTypes {
     String BROWSER_DISPLAY_MODE = "browser.display.mode";
     String BROWSER_IMAGES_ENABLED = "browser.images.enabled";
     String BROWSER_JS_INVADING_ENABLED = "browser.js.invading.enabled";
+    String BROWSER_USER_DATA_DIR = "browser.user.data.dir";
 
     String BROWSER_DELETE_ALL_COOKIES = "browser.delete.all.cookies";
     /**

@@ -587,6 +587,17 @@ object StringFunctions {
         }
         return result
     }
+
+    @UDFunction
+    @JvmStatic
+    fun substringAllEnds(strs: Array<String>, cnt: Int): Array<String> {
+        val result:Array<String> = Array<String>(strs.size) { "" }
+        for (i in strs.indices) {
+            result[i] = StringUtils.substring(strs[i], strs[i].length - cnt)
+        }
+        return result
+    }
+
     @UDFunction
     @JvmStatic
     fun stringAppendAllEnd(strs: Array<String>, arg1: String): Array<String> {
